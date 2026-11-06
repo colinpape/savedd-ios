@@ -45,7 +45,6 @@ struct ContentView: View {
                 forwardHistory: $forwardHistory,
                 preferences: onboarding.preferences
             )
-            .id(onboarding.webRevision)
             .edgesIgnoringSafeArea(.top)
             
             // Safari-style bottom bar

@@ -47,8 +47,6 @@ final class OnboardingStore: ObservableObject {
         defaults.set(data, forKey: Self.preferencesKey)
     }
 
-    /// Recreate the embedded page only after a deliberate native preference change.
-    var webRevision: String { preferences.webPayload }
 }
 
 enum SaveddAccountConfiguration {

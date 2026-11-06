@@ -51,8 +51,10 @@ An origin-restricted, main-frame-only WKUserScript merges `theme`, `languageFilt
 and `privacyMode` into `savedd:app-config` **before the website mounts**. A revision
 marker avoids reapplying the same native choices on each navigation, preserving
 subsequent changes made in the website. Other website settings and the existing
-`savedd:referrer` are preserved. Changing native Settings recreates the web view
-and applies the new choices. Native controls do not currently mirror later edits
+`savedd:referrer` are preserved. Changing native Settings refreshes the current
+Savedd page while keeping the web view and its navigation history. External pages
+are left alone; the updated bootstrap applies on the next Savedd navigation.
+Native controls do not currently mirror later edits
 made independently in the website's Settings screen.
 
 Search language is a result preference, using the website's existing supported
