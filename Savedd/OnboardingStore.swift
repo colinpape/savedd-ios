@@ -19,29 +19,29 @@ final class OnboardingStore: ObservableObject {
     @Published var preferences: SaveddPreferences { didSet { save() } }
     @Published private(set) var isComplete: Bool
     private let defaults: UserDefaults
-    private let preferencesKey = "savedd.onboarding.preferences.v1"
-    private let completedKey = "savedd.onboarding.completed.v1"
+    private static let preferencesKey = "savedd.onboarding.preferences.v1"
+    private static let completedKey = "savedd.onboarding.completed.v1"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        if let data = defaults.data(forKey: preferencesKey),
+        if let data = defaults.data(forKey: Self.preferencesKey),
            let saved = try? JSONDecoder().decode(SaveddPreferences.self, from: data) {
             preferences = saved
         } else {
             preferences = SaveddPreferences()
         }
-        isComplete = defaults.bool(forKey: completedKey)
+        isComplete = defaults.bool(forKey: Self.completedKey)
     }
 
     func complete() {
         save()
-        defaults.set(true, forKey: completedKey)
+        defaults.set(true, forKey: Self.completedKey)
         isComplete = true
     }
 
     private func save() {
         guard let data = try? JSONEncoder().encode(preferences) else { return }
-        defaults.set(data, forKey: preferencesKey)
+        defaults.set(data, forKey: Self.preferencesKey)
     }
 
     /// Recreate the embedded page only after a deliberate native preference change.
