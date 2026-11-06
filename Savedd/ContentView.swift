@@ -1,4 +1,5 @@
 import SwiftUI
+import WebKit
 
 struct ContentView: View {
     @State private var url: URL = SaveddSearchEngine.homeURL
