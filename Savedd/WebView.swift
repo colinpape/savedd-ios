@@ -10,12 +10,29 @@ struct WebView: UIViewRepresentable {
         let config = WKWebViewConfiguration()
         config.allowsInlineMediaPlayback = true
 
+        // Force color-scheme: dark so sites that check prefers-color-scheme see dark mode
+        let darkSchemeScript = """
+        (function() {
+            const style = document.createElement('style');
+            style.id = 'savedd-force-dark';
+            style.innerHTML = 'html { color-scheme: dark !important; }';
+            (document.head || document.documentElement).appendChild(style);
+            document.documentElement.style.colorScheme = 'dark';
+        })();
+        """
+
+        let userScript = WKUserScript(
+            source: darkSchemeScript,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: false
+        )
+        config.userContentController.addUserScript(userScript)
+
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
 
-        // Tell websites the device is in dark mode so they load their dark styles
-        // (sites that respect prefers-color-scheme: dark will respond)
+        // Also set the UIKit trait so the web view itself reports dark
         webView.overrideUserInterfaceStyle = .dark
 
         // Dark background so there's no white flash before the page loads
