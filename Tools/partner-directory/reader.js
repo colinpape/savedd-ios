@@ -8,6 +8,16 @@ const RELAYS = [
   'wss://relay.ditto.pub/',
   'wss://relay-na1.metanomalist.com/',
   'wss://relay.primal.net/',
+  'wss://test-sip-relay.sip-01test.workers.dev/',
+  'wss://sip-relay-2.sip-booster-relay.workers.dev/',
+  'wss://sip-relay-3.uncaged-sip.workers.dev/',
+  'wss://sip-relay-4.sip-relay-4.workers.dev/',
+  'wss://jskitty.cat/nostr',
+  'wss://search.nos.today/',
+  'wss://relay.nostr.band/',
+  'wss://relay.noswhere.com/',
+  'wss://relay.pocketnostr.com/',
+  'wss://relay.damus.io/',
 ];
 const ADMIN = 'savedd:admin-roles';
 const LEGACY_ADMIN = 'presearchstr:admin-roles';

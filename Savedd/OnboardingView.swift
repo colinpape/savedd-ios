@@ -7,24 +7,27 @@ struct SaveddRootView: View {
     var body: some View {
         Group {
             if store.isComplete {
-                ContentView(initialURL: firstBrowserURL ?? SaveddSearchEngine.homeURL)
+                ContentView(initialURL: firstBrowserURL ?? referralURL(SaveddSearchEngine.homeURL))
                     .preferredColorScheme(store.preferences.appearance.colorScheme)
             } else {
                 OnboardingView { signupURL in
-                    var components = URLComponents(url: signupURL ?? SaveddSearchEngine.homeURL, resolvingAgainstBaseURL: false)!
-                    if let partner = store.preferences.partner {
-                        var query = components.queryItems ?? []
-                        query.removeAll { $0.name == "ref" }
-                        query.append(URLQueryItem(name: "ref", value: partner.pubkey))
-                        components.queryItems = query
-                    }
-                    firstBrowserURL = components.url
+                    firstBrowserURL = referralURL(signupURL ?? SaveddSearchEngine.homeURL)
                     store.complete()
                 }
                 .preferredColorScheme(.dark)
             }
         }
         .environmentObject(store)
+    }
+
+    private func referralURL(_ url: URL) -> URL {
+        guard let partner = store.preferences.partner,
+              var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return url }
+        var query = components.queryItems ?? []
+        query.removeAll { $0.name == "ref" }
+        query.append(URLQueryItem(name: "ref", value: partner.pubkey))
+        components.queryItems = query
+        return components.url ?? url
     }
 }
 
