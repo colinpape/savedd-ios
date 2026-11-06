@@ -28,6 +28,11 @@ jobs:
           xcrun simctl bootstatus "$DEVICE_ID" -b
           xcrun simctl install "$DEVICE_ID" DerivedData/Build/Products/Debug-iphonesimulator/Savedd.app
           mkdir -p screenshots
+          collect_diagnostics() {
+            xcrun simctl spawn "$DEVICE_ID" log show --last 4m --style compact --predicate 'process == "Savedd"' > screenshots/app.log 2>&1 || true
+            find "$HOME/Library/Logs/DiagnosticReports" -type f -name 'Savedd*' -exec cp {} screenshots/ \; || true
+          }
+          trap collect_diagnostics EXIT
           for STEP in 0 1 2 3; do
             xcrun simctl launch "$DEVICE_ID" com.savedd.browser --onboarding-preview-step "$STEP"
             sleep 20
@@ -35,6 +40,7 @@ jobs:
             xcrun simctl terminate "$DEVICE_ID" com.savedd.browser
           done
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: onboarding-screens
-          path: screenshots/*.png
+          path: screenshots/
