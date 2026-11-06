@@ -12,6 +12,7 @@ struct ContentView: View {
     @State private var showBookmarks = false
     @State private var showShare = false
     @State private var shareItems: [Any] = []
+    @State private var isEditingAddress = false
     
     private var activeURL: Binding<URL> {
         Binding(
@@ -20,48 +21,81 @@ struct ContentView: View {
         )
     }
     
+    private var displayDomain: String {
+        let url = tabs[activeTabIndex].url
+        return url.host ?? url.absoluteString
+    }
+    
     var body: some View {
         VStack(spacing: 0) {
             WebView(url: activeURL, canGoBack: $canGoBack, canGoForward: $canGoForward)
                 .edgesIgnoringSafeArea(.top)
             
-            Divider()
-            
-            // Bottom toolbar
-            HStack(spacing: 12) {
-                Button(action: goBack) {
-                    Image(systemName: "chevron.left")
+            // Safari-style bottom bar
+            VStack(spacing: 8) {
+                // Rounded address bar
+                HStack(spacing: 10) {
+                    Button(action: { /* menu placeholder */ }) {
+                        Image(systemName: "line.3.horizontal")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.primary)
+                    }
+                    
+                    if isEditingAddress {
+                        TextField("Search or enter address", text: $searchText, onCommit: {
+                            performSearch()
+                            isEditingAddress = false
+                        })
+                        .textFieldStyle(.plain)
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                        .font(.system(size: 16))
+                    } else {
+                        Text(displayDomain)
+                            .font(.system(size: 16, weight: .medium))
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity)
+                            .onTapGesture {
+                                searchText = tabs[activeTabIndex].url.absoluteString
+                                isEditingAddress = true
+                            }
+                    }
+                    
+                    Button(action: {
+                        if isEditingAddress {
+                            searchText = ""
+                        } else {
+                            loadURL(SaveddSearchEngine.homeURL)
+                        }
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.secondary)
+                    }
                 }
-                .disabled(!canGoBack)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(UIColor.secondarySystemBackground))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 0.5)
+                )
+                .padding(.horizontal, 12)
                 
-                Button(action: goForward) {
-                    Image(systemName: "chevron.right")
+                // Action buttons
+                HStack(spacing: 0) {
+                    ToolbarButton(icon: "chevron.left", action: goBack, disabled: !canGoBack)
+                    ToolbarButton(icon: "chevron.right", action: goForward, disabled: !canGoForward)
+                    ToolbarButton(icon: "square.and.arrow.up", action: shareCurrentPage)
+                    ToolbarButton(icon: "book", action: { showBookmarks = true })
+                    ToolbarButton(icon: "square.on.square", action: { showTabs = true })
                 }
-                .disabled(!canGoForward)
-                
-                TextField("Search or enter address", text: $searchText, onCommit: performSearch)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .autocapitalization(.none)
-                    .disableAutocorrection(true)
-                
-                Button(action: performSearch) {
-                    Image(systemName: "arrow.right.circle.fill")
-                }
-                
-                Button(action: { showTabs = true }) {
-                    Image(systemName: "square.on.square")
-                }
-                
-                Button(action: shareCurrentPage) {
-                    Image(systemName: "square.and.arrow.up")
-                }
-                
-                Button(action: { showBookmarks = true }) {
-                    Image(systemName: "book")
-                }
+                .padding(.horizontal, 4)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
+            .padding(.vertical, 8)
             .background(Color(UIColor.systemBackground))
         }
         .edgesIgnoringSafeArea(.bottom)
@@ -78,7 +112,9 @@ struct ContentView: View {
             ShareSheet(activityItems: shareItems)
         }
         .onChange(of: tabs[activeTabIndex].url) { _ in
-            searchText = tabs[activeTabIndex].url.absoluteString
+            if !isEditingAddress {
+                searchText = tabs[activeTabIndex].url.absoluteString
+            }
         }
     }
     
@@ -107,10 +143,11 @@ struct ContentView: View {
     private func loadURL(_ url: URL) {
         tabs[activeTabIndex].url = url
         searchText = url.absoluteString
+        isEditingAddress = false
     }
     
     private func goBack() {
-        // Placeholder — full back/forward needs web view reference; basic version reloads previous if tracked
+        // Placeholder
     }
     
     private func goForward() {
@@ -122,12 +159,30 @@ struct ContentView: View {
         tabs.append(newTab)
         activeTabIndex = tabs.count - 1
         searchText = ""
+        isEditingAddress = false
     }
     
     private func shareCurrentPage() {
         let url = tabs[activeTabIndex].url
         shareItems = [url]
         showShare = true
+    }
+}
+
+struct ToolbarButton: View {
+    let icon: String
+    let action: () -> Void
+    var disabled: Bool = false
+    
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .medium))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .foregroundColor(disabled ? .secondary : .primary)
+        }
+        .disabled(disabled)
     }
 }
 
