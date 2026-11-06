@@ -9,40 +9,37 @@ struct ContentView: View {
     @State private var webViewProxy: WKWebView? // optional for later navigation controls
 
     var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                // Search / address bar
-                HStack {
-                    Button(action: goBack) {
-                        Image(systemName: "chevron.left")
-                    }
-                    .disabled(!canGoBack)
+        VStack(spacing: 0) {
+            // Web content takes the full remaining space
+            WebView(url: $url, canGoBack: $canGoBack, canGoForward: $canGoForward)
+                .edgesIgnoringSafeArea(.top)
 
-                    Button(action: goForward) {
-                        Image(systemName: "chevron.right")
-                    }
-                    .disabled(!canGoForward)
+            Divider()
 
-                    TextField("Search Savedd or enter address", text: $searchText, onCommit: performSearch)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
-
-                    Button("Go", action: performSearch)
+            // Search / address bar at the bottom
+            HStack {
+                Button(action: goBack) {
+                    Image(systemName: "chevron.left")
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-                .background(Color(UIColor.systemBackground))
+                .disabled(!canGoBack)
 
-                Divider()
+                Button(action: goForward) {
+                    Image(systemName: "chevron.right")
+                }
+                .disabled(!canGoForward)
 
-                WebView(url: $url, canGoBack: $canGoBack, canGoForward: $canGoForward)
-                    .edgesIgnoringSafeArea(.bottom)
+                TextField("Search Savedd or enter address", text: $searchText, onCommit: performSearch)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .autocapitalization(.none)
+                    .disableAutocorrection(true)
+
+                Button("Go", action: performSearch)
             }
-            .navigationTitle("Savedd")
-            .navigationBarTitleDisplayMode(.inline)
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+            .background(Color(UIColor.systemBackground))
         }
-        .navigationViewStyle(StackNavigationViewStyle())
+        .edgesIgnoringSafeArea(.bottom)
     }
 
     private func performSearch() {
