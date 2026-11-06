@@ -9,9 +9,47 @@ struct WebView: UIViewRepresentable {
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.allowsInlineMediaPlayback = true
+
+        // Inject dark mode CSS into every page
+        let darkModeScript = """
+        (function() {
+            const style = document.createElement('style');
+            style.id = 'savedd-dark-mode';
+            style.innerHTML = `
+                html, body {
+                    color-scheme: dark !important;
+                    background-color: #1c1c1e !important;
+                    color: #e5e5e7 !important;
+                }
+                body, div, section, article, main, header, footer, nav, aside, p, span, h1, h2, h3, h4, h5, h6, li, td, th {
+                    background-color: transparent !important;
+                    color: #e5e5e7 !important;
+                }
+                a { color: #0a84ff !important; }
+                input, textarea, select, button {
+                    background-color: #2c2c2e !important;
+                    color: #e5e5e7 !important;
+                    border-color: #3a3a3c !important;
+                }
+            `;
+            document.documentElement.appendChild(style);
+        })();
+        """
+
+        let userScript = WKUserScript(
+            source: darkModeScript,
+            injectionTime: .atDocumentEnd,
+            forMainFrameOnly: false
+        )
+        config.userContentController.addUserScript(userScript)
+
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
+        webView.isOpaque = false
+        webView.backgroundColor = UIColor(red: 0.11, green: 0.11, blue: 0.12, alpha: 1.0) // #1c1c1e
+        webView.scrollView.backgroundColor = webView.backgroundColor
+
         return webView
     }
 
