@@ -26,6 +26,7 @@ struct WebView: UIViewRepresentable {
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
+        // Only load if the requested URL is different and we're not already navigating there
         if webView.url != url {
             let request = URLRequest(url: url)
             webView.load(request)
@@ -45,10 +46,26 @@ struct WebView: UIViewRepresentable {
             self.parent = parent
         }
 
+        // Allow all navigations (including link clicks)
+        func webView(_ webView: WKWebView,
+                     decidePolicyFor navigationAction: WKNavigationAction,
+                     decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            decisionHandler(.allow)
+        }
+
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             parent.canGoBack = webView.canGoBack
             parent.canGoForward = webView.canGoForward
-            if let current = webView.url {
+
+            // Sync the binding with the actual URL after navigation (link click, redirect, etc.)
+            if let current = webView.url, current != parent.url {
+                parent.url = current
+            }
+        }
+
+        func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+            // Update early so the address bar reflects the new page as it loads
+            if let current = webView.url, current != parent.url {
                 parent.url = current
             }
         }
