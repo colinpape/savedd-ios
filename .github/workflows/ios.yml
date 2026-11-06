@@ -20,16 +20,20 @@ jobs:
         run: git diff --exit-code -- Savedd/PartnerDirectory.js
       - name: Build for iOS Simulator without signing
         run: xcodebuild -project Savedd.xcodeproj -scheme Savedd -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build
-      - name: Capture first-run screen
+      - name: Capture first-run screens
         run: |
           DEVICE_ID=$(xcrun simctl list devices available --json | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for group in d["devices"].values() for x in group if "iPhone" in x["name"]))')
           xcrun simctl boot "$DEVICE_ID"
           xcrun simctl bootstatus "$DEVICE_ID" -b
           xcrun simctl install "$DEVICE_ID" DerivedData/Build/Products/Debug-iphonesimulator/Savedd.app
-          xcrun simctl launch "$DEVICE_ID" com.savedd.browser
-          sleep 3
-          xcrun simctl io "$DEVICE_ID" screenshot welcome.png
+          mkdir -p screenshots
+          for STEP in 0 1 2 3; do
+            xcrun simctl launch "$DEVICE_ID" com.savedd.browser --onboarding-preview-step "$STEP"
+            sleep 12
+            xcrun simctl io "$DEVICE_ID" screenshot "screenshots/step-$STEP.png"
+            xcrun simctl terminate "$DEVICE_ID" com.savedd.browser
+          done
       - uses: actions/upload-artifact@v4
         with:
-          name: onboarding-welcome
-          path: welcome.png
+          name: onboarding-screens
+          path: screenshots/*.png

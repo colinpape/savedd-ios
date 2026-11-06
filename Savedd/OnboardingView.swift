@@ -38,6 +38,19 @@ struct OnboardingView: View {
 
     private let steps = ["Welcome", "Your invitation", "Your preferences", "Your account"]
 
+    init(onFinish: @escaping (URL?) -> Void) {
+        self.onFinish = onFinish
+        #if DEBUG
+        // Simulator screenshots can open each real screen without test-only
+        // partners, simulated accounts, or changing the release experience.
+        let args = ProcessInfo.processInfo.arguments
+        if let index = args.firstIndex(of: "--onboarding-preview-step"),
+           args.indices.contains(index + 1), let value = Int(args[index + 1]), (0...3).contains(value) {
+            _step = State(initialValue: value)
+        }
+        #endif
+    }
+
     var body: some View {
         ZStack {
             OnboardingBackground()
@@ -331,7 +344,9 @@ private struct PartnerPicker: View {
                 }
             }
             if !query.isEmpty && store.preferences.partner == nil {
-                Text("Select a partner to confirm your choice. An unrecognized code is saved on this device only.")
+                Text(query.range(of: "^[A-Za-z0-9][A-Za-z0-9-]{1,31}$", options: .regularExpression) == nil
+                     ? "Choose a matching partner above, or enter a code with 2–32 letters, numbers, or hyphens."
+                     : "Select a partner to confirm your choice. An unrecognized code is saved on this device only.")
                     .font(.caption).foregroundStyle(SaveddBrand.muted)
             }
         }
