@@ -13,6 +13,12 @@
 		A10000000000000000000004 /* WebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000004 /* WebView.swift */; };
 		A10000000000000000000005 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000005 /* Assets.xcassets */; };
 		A10000000000000000000006 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000006 /* Models.swift */; };
+		A10000000000000000000007 /* OnboardingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* OnboardingStore.swift */; };
+		A10000000000000000000008 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* OnboardingView.swift */; };
+		A10000000000000000000009 /* Brand.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000009 /* Brand.swift */; };
+		A10000000000000000000010 /* PartnerDirectory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000010 /* PartnerDirectory.swift */; };
+		A10000000000000000000011 /* PartnerDirectory.js in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* PartnerDirectory.js */; };
+		A10000000000000000000012 /* ThirdPartyNotices.txt in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000012 /* ThirdPartyNotices.txt */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -23,6 +29,12 @@
 		A20000000000000000000005 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A20000000000000000000006 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		A30000000000000000000001 /* Savedd.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Savedd.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A20000000000000000000007 /* OnboardingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingStore.swift; sourceTree = "<group>"; };
+		A20000000000000000000008 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		A20000000000000000000009 /* Brand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Brand.swift; sourceTree = "<group>"; };
+		A20000000000000000000010 /* PartnerDirectory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PartnerDirectory.swift; sourceTree = "<group>"; };
+		A20000000000000000000011 /* PartnerDirectory.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = PartnerDirectory.js; sourceTree = "<group>"; };
+		A20000000000000000000012 /* ThirdPartyNotices.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = ThirdPartyNotices.txt; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -53,6 +65,12 @@
 				A20000000000000000000003 /* SearchEngine.swift */,
 				A20000000000000000000004 /* WebView.swift */,
 				A20000000000000000000006 /* Models.swift */,
+				A20000000000000000000007 /* OnboardingStore.swift */,
+				A20000000000000000000008 /* OnboardingView.swift */,
+				A20000000000000000000009 /* Brand.swift */,
+				A20000000000000000000010 /* PartnerDirectory.swift */,
+				A20000000000000000000011 /* PartnerDirectory.js */,
+				A20000000000000000000012 /* ThirdPartyNotices.txt */,
 			);
 			path = Savedd;
 			sourceTree = "<group>";
@@ -123,6 +141,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000005 /* Assets.xcassets in Resources */,
+				A10000000000000000000011 /* PartnerDirectory.js in Resources */,
+				A10000000000000000000012 /* ThirdPartyNotices.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -138,6 +158,10 @@
 				A10000000000000000000003 /* SearchEngine.swift in Sources */,
 				A10000000000000000000004 /* WebView.swift in Sources */,
 				A10000000000000000000006 /* Models.swift in Sources */,
+				A10000000000000000000007 /* OnboardingStore.swift in Sources */,
+				A10000000000000000000008 /* OnboardingView.swift in Sources */,
+				A10000000000000000000009 /* Brand.swift in Sources */,
+				A10000000000000000000010 /* PartnerDirectory.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

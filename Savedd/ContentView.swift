@@ -2,8 +2,9 @@ import SwiftUI
 import WebKit
 
 struct ContentView: View {
+    @EnvironmentObject private var onboarding: OnboardingStore
     @StateObject private var bookmarkStore = BookmarkStore()
-    @State private var tabs: [BrowserTab] = [BrowserTab(url: SaveddSearchEngine.homeURL)]
+    @State private var tabs: [BrowserTab]
     @State private var activeTabIndex = 0
     @State private var searchText = ""
     @State private var canGoBack = false
@@ -13,9 +14,14 @@ struct ContentView: View {
     @State private var showTabs = false
     @State private var showBookmarks = false
     @State private var showShare = false
+    @State private var showSettings = false
     @State private var shareItems: [Any] = []
     @State private var isEditingAddress = false
     @FocusState private var addressFieldFocused: Bool
+
+    init(initialURL: URL = SaveddSearchEngine.homeURL) {
+        _tabs = State(initialValue: [BrowserTab(url: initialURL)])
+    }
     
     private var activeURL: Binding<URL> {
         Binding(
@@ -36,19 +42,23 @@ struct ContentView: View {
                 canGoBack: $canGoBack,
                 canGoForward: $canGoForward,
                 backHistory: $backHistory,
-                forwardHistory: $forwardHistory
+                forwardHistory: $forwardHistory,
+                preferences: onboarding.preferences
             )
+            .id(onboarding.webRevision)
             .edgesIgnoringSafeArea(.top)
             
             // Safari-style bottom bar
             VStack(spacing: 8) {
                 // Rounded address bar
                 HStack(spacing: 10) {
-                    Button(action: { /* menu placeholder */ }) {
+                    Button(action: { showSettings = true }) {
                         Image(systemName: "line.3.horizontal")
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(.primary)
                     }
+                    .frame(minWidth: 44, minHeight: 44)
+                    .accessibilityLabel("Settings")
                     
                     ZStack {
                         if isEditingAddress {
@@ -154,6 +164,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showShare) {
             ShareSheet(activityItems: shareItems)
+        }
+        .sheet(isPresented: $showSettings) {
+            SaveddSettingsView()
         }
         .onChange(of: tabs[activeTabIndex].url) { _ in
             if !isEditingAddress {
@@ -384,5 +397,6 @@ struct ShareSheet: UIViewControllerRepresentable {
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
+            .environmentObject(OnboardingStore())
     }
 }

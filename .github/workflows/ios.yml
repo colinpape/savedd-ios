@@ -1,0 +1,35 @@
+name: iOS build
+on:
+  pull_request:
+  push:
+    branches: [main, codex/ios-first-run-onboarding]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify directory trust rules and website preference handoff
+        working-directory: Tools/partner-directory
+        run: npm ci && npm test && npm run build
+      - name: Verify bundled directory reader is current
+        run: git diff --exit-code -- Savedd/PartnerDirectory.js
+      - name: Build for iOS Simulator without signing
+        run: xcodebuild -project Savedd.xcodeproj -scheme Savedd -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build
+      - name: Capture first-run screen
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices available --json | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for group in d["devices"].values() for x in group if "iPhone" in x["name"]))')
+          xcrun simctl boot "$DEVICE_ID"
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          xcrun simctl install "$DEVICE_ID" DerivedData/Build/Products/Debug-iphonesimulator/Savedd.app
+          xcrun simctl launch "$DEVICE_ID" com.savedd.browser
+          sleep 3
+          xcrun simctl io "$DEVICE_ID" screenshot welcome.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: onboarding-welcome
+          path: welcome.png

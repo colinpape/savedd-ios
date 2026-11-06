@@ -13,11 +13,17 @@ struct WebView: UIViewRepresentable {
     @Binding var canGoForward: Bool
     @Binding var backHistory: [HistoryItem]
     @Binding var forwardHistory: [HistoryItem]
+    var preferences: SaveddPreferences = SaveddPreferences()
     var goToHistoryItem: ((HistoryItem) -> Void)? = nil
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.allowsInlineMediaPlayback = true
+        config.userContentController.addUserScript(WKUserScript(
+            source: preferences.bootstrapScript,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        ))
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
@@ -34,11 +40,13 @@ struct WebView: UIViewRepresentable {
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
+        context.coordinator.parent = self
         if webView.url != url {
             let request = URLRequest(url: url)
             webView.load(request)
         }
-        updateHistory(webView)
+        // Navigation delegate callbacks publish history; avoid changing SwiftUI
+        // state synchronously during updateUIView.
     }
 
     private func updateHistory(_ webView: WKWebView) {

@@ -1,4 +1,4 @@
-import Foundation
+import SwiftUI
 
 struct BrowserTab: Identifiable, Codable {
     var id = UUID()
