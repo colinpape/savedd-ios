@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var showShare = false
     @State private var shareItems: [Any] = []
     @State private var isEditingAddress = false
+    @FocusState private var addressFieldFocused: Bool
     
     private var activeURL: Binding<URL> {
         Binding(
@@ -41,24 +42,35 @@ struct ContentView: View {
                             .foregroundColor(.primary)
                     }
                     
-                    if isEditingAddress {
-                        TextField("Search or enter address", text: $searchText, onCommit: {
-                            performSearch()
-                            isEditingAddress = false
-                        })
-                        .textFieldStyle(.plain)
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
-                        .font(.system(size: 16))
-                    } else {
-                        Text(displayDomain)
-                            .font(.system(size: 16, weight: .medium))
-                            .lineLimit(1)
-                            .frame(maxWidth: .infinity)
-                            .onTapGesture {
-                                searchText = tabs[activeTabIndex].url.absoluteString
-                                isEditingAddress = true
+                    ZStack {
+                        if isEditingAddress {
+                            TextField("Search or enter address", text: $searchText)
+                                .focused($addressFieldFocused)
+                                .textFieldStyle(.plain)
+                                .autocapitalization(.none)
+                                .disableAutocorrection(true)
+                                .font(.system(size: 16))
+                                .onSubmit {
+                                    performSearch()
+                                    isEditingAddress = false
+                                    addressFieldFocused = false
+                                }
+                        } else {
+                            Text(displayDomain)
+                                .font(.system(size: 16, weight: .medium))
+                                .lineLimit(1)
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        if !isEditingAddress {
+                            searchText = tabs[activeTabIndex].url.absoluteString
+                            isEditingAddress = true
+                            DispatchQueue.main.async {
+                                addressFieldFocused = true
                             }
+                        }
                     }
                     
                     Button(action: {
@@ -144,6 +156,7 @@ struct ContentView: View {
         tabs[activeTabIndex].url = url
         searchText = url.absoluteString
         isEditingAddress = false
+        addressFieldFocused = false
     }
     
     private func goBack() {
@@ -160,6 +173,7 @@ struct ContentView: View {
         activeTabIndex = tabs.count - 1
         searchText = ""
         isEditingAddress = false
+        addressFieldFocused = false
     }
     
     private func shareCurrentPage() {
