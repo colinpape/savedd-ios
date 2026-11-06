@@ -20,11 +20,15 @@ Savedd/
 
 ## App Icon
 
-A master 1024×1024 app icon (gold Christian cross inside a magnifying glass on dark burgundy) is available. To use it:
+The 1024×1024 app icon (gold Christian cross inside a magnifying glass on dark burgundy #2C0812) is stored as base64 so it can live in the repo.
 
-1. Download the icon (savedd_cross_v3.png or the 1024 version).
-2. In Xcode → Assets.xcassets → AppIcon → drop the 1024×1024 PNG into the App Store slot.
-3. Xcode will generate the remaining sizes, or use a tool like appicon.co.
+To decode it:
+
+```bash
+bash Assets/decode_icon.sh
+```
+
+This produces `Assets/AppIcon-1024.png`. Drop that file into Xcode → Assets.xcassets → AppIcon → App Store slot. Xcode generates the remaining sizes.
 
 ## Building
 
