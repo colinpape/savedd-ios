@@ -12,6 +12,7 @@ struct WebView: UIViewRepresentable {
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
+        webView.uiDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
 
         // Identify as the Savedd app so savedd.com can auto-apply dark mode
@@ -26,7 +27,6 @@ struct WebView: UIViewRepresentable {
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
-        // Only load if the requested URL is different and we're not already navigating there
         if webView.url != url {
             let request = URLRequest(url: url)
             webView.load(request)
@@ -39,32 +39,41 @@ struct WebView: UIViewRepresentable {
         Coordinator(self)
     }
 
-    class Coordinator: NSObject, WKNavigationDelegate {
+    class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
         var parent: WebView
 
         init(_ parent: WebView) {
             self.parent = parent
         }
 
-        // Allow all navigations (including link clicks)
+        // Allow all navigations
         func webView(_ webView: WKWebView,
                      decidePolicyFor navigationAction: WKNavigationAction,
                      decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
             decisionHandler(.allow)
         }
 
+        // Handle target="_blank" and new-window requests by loading in the same web view
+        func webView(_ webView: WKWebView,
+                     createWebViewWith configuration: WKWebViewConfiguration,
+                     for navigationAction: WKNavigationAction,
+                     windowFeatures: WKWindowFeatures) -> WKWebView? {
+            if navigationAction.targetFrame == nil {
+                webView.load(navigationAction.request)
+            }
+            return nil
+        }
+
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             parent.canGoBack = webView.canGoBack
             parent.canGoForward = webView.canGoForward
 
-            // Sync the binding with the actual URL after navigation (link click, redirect, etc.)
             if let current = webView.url, current != parent.url {
                 parent.url = current
             }
         }
 
         func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
-            // Update early so the address bar reflects the new page as it loads
             if let current = webView.url, current != parent.url {
                 parent.url = current
             }
