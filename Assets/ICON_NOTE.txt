@@ -1,0 +1,8 @@
+The full 1024x1024 Savedd app icon (gold Christian cross in magnifying glass on dark burgundy #2C0812) is stored as base64 in AppIcon-1024.b64.
+
+To decode:
+bash Assets/decode_icon.sh
+
+Then drop Assets/AppIcon-1024.png into Xcode Assets.xcassets > AppIcon > App Store slot.
+
+Android sizes are in the reference-browser repo under app/src/main/res/mipmap-*/ic_launcher.png.
