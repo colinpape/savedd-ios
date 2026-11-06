@@ -64,18 +64,15 @@ final class PartnerDirectory: NSObject, ObservableObject, WKNavigationDelegate {
                     throw DirectoryError.unavailable
                 }
                 let script = try String(contentsOf: url, encoding: .utf8)
-                _ = try await webView.evaluateJavaScript(script + "; true;")
+                _ = try await evaluate(script + "; true;", in: webView)
                 let roles = try await query(authors: [Self.owner], tags: ["savedd:admin-roles", "presearchstr:admin-roles"], limit: 8)
-                let authorsResult = try await webView.callAsyncJavaScript(
-                    "return SaveddPartnerReader.trustedAuthors(events)",
-                    arguments: ["events": roles], in: nil, contentWorld: .page
-                )
+                let rolesJSON = try json(roles)
+                let authorsResult = try await evaluate("SaveddPartnerReader.trustedAuthors(\(rolesJSON))", in: webView)
                 guard let authors = authorsResult as? [String] else { throw DirectoryError.unavailable }
                 let events = try await query(authors: authors, tags: ["savedd:partners"], limit: 20)
-                let result = try await webView.callAsyncJavaScript(
-                    "return SaveddPartnerReader.resolveDirectory(events, authors)",
-                    arguments: ["events": events, "authors": authors], in: nil, contentWorld: .page
-                )
+                let eventsJSON = try json(events)
+                let authorsJSON = try json(authors)
+                let result = try await evaluate("SaveddPartnerReader.resolveDirectory(\(eventsJSON), \(authorsJSON))", in: webView)
                 try Task.checkCancellation()
                 let data = try JSONSerialization.data(withJSONObject: result)
                 let records = try JSONDecoder().decode([SaveddPartner].self, from: data)
@@ -93,6 +90,24 @@ final class PartnerDirectory: NSObject, ObservableObject, WKNavigationDelegate {
         let complete: Bool
     }
     private enum DirectoryError: Error { case unavailable }
+
+    private func json(_ value: Any) throws -> String {
+        let data = try JSONSerialization.data(withJSONObject: value)
+        guard let text = String(data: data, encoding: .utf8) else { throw DirectoryError.unavailable }
+        return text
+    }
+
+    /// Use the Objective-C completion API: WebKit's Swift async overlay can
+    /// introduce a libswiftWebKit dependency absent on supported runtimes.
+    /// JSON arguments above are encoded as data, never interpolated raw strings.
+    private func evaluate(_ script: String, in view: WKWebView) async throws -> Any {
+        try await withCheckedThrowingContinuation { continuation in
+            view.evaluateJavaScript(script) { result, error in
+                if let error { continuation.resume(throwing: error) }
+                else { continuation.resume(returning: result ?? NSNull()) }
+            }
+        }
+    }
 
     private func query(authors: [String], tags: [String], limit: Int) async throws -> [[String: Any]] {
         let filter: [String: Any] = ["kinds": [30078], "authors": authors, "#d": tags, "limit": limit]
