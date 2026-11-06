@@ -2,7 +2,7 @@ name: iOS build
 on:
   pull_request:
   push:
-    branches: [main, codex/ios-first-run-onboarding]
+    branches: [main]
 permissions:
   contents: read
 jobs:

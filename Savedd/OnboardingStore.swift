@@ -8,7 +8,10 @@ enum SaveddAppearance: String, Codable, CaseIterable {
 
 struct SaveddPreferences: Codable, Equatable {
     var appearance: SaveddAppearance = .dark
-    var language = Locale.preferredLanguages.first.map { String($0.prefix(2)).lowercased() } ?? "en"
+    var language: String = {
+        let code = (Locale.preferredLanguages.first ?? "en").components(separatedBy: "-")[0].lowercased()
+        return code.range(of: "^[a-z]{2}$", options: .regularExpression) != nil ? code : "en"
+    }()
     var privacyMode = false
     var referralCode = ""
     var partner: SaveddPartner?
