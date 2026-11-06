@@ -16,70 +16,166 @@ struct SaveddPartner: Codable, Equatable, Identifiable {
     }
 }
 
-/// Reads the same signed public directory used by the website's PartnerAdmin.
-/// The bundled reader verifies event signatures AND the owner/admin trust chain.
-/// No login, private keys, web page, or referral tracking is involved in this read.
+/// Reads the website's public admin-managed directory without requiring login.
+/// URLSession handles networking; the bundled JS performs synchronous signature
+/// and trust-chain verification. WebKit background-page timers are never needed.
 @MainActor
-final class PartnerDirectory: NSObject, ObservableObject, WKScriptMessageHandler, WKNavigationDelegate {
+final class PartnerDirectory: NSObject, ObservableObject, WKNavigationDelegate {
     @Published private(set) var partners: [SaveddPartner] = []
     @Published private(set) var isLoading = false
     @Published private(set) var error: String?
     private var webView: WKWebView?
+    private var readerTask: Task<Void, Never>?
     private var timeout: Task<Void, Never>?
+    private static let owner = "c45041618951bb6012ac23f5cdf3d740465f2d640be841fd9bb1d0733370cd3c"
+    private static let relays = [
+        "wss://savedd-sip-relay.savedd-sip-relay.workers.dev/", "wss://relay.ditto.pub/",
+        "wss://relay-na1.metanomalist.com/", "wss://relay.primal.net/",
+        "wss://test-sip-relay.sip-01test.workers.dev/", "wss://sip-relay-2.sip-booster-relay.workers.dev/",
+        "wss://sip-relay-3.uncaged-sip.workers.dev/", "wss://sip-relay-4.sip-relay-4.workers.dev/",
+        "wss://jskitty.cat/nostr", "wss://search.nos.today/", "wss://relay.nostr.band/",
+        "wss://relay.noswhere.com/", "wss://relay.pocketnostr.com/", "wss://relay.damus.io/"
+    ]
 
     func load() {
         guard !isLoading else { return }
         stop()
         isLoading = true
         error = nil
-        let controller = WKUserContentController()
-        controller.add(self, name: "partnerDirectory")
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .nonPersistent()
-        configuration.userContentController = controller
         let view = WKWebView(frame: .zero, configuration: configuration)
         view.navigationDelegate = self
         webView = view
         view.loadHTMLString("<html><head><meta charset='utf-8'></head><body></body></html>", baseURL: nil)
         timeout = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(15))
+            try? await Task.sleep(for: .seconds(25))
             guard !Task.isCancelled else { return }
             self?.failed()
         }
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        guard let url = Bundle.main.url(forResource: "PartnerDirectory", withExtension: "js"),
-              let script = try? String(contentsOf: url, encoding: .utf8) else { failed(); return }
-        webView.evaluateJavaScript(script) { [weak self] _, error in
-            if error != nil { self?.failed() }
+        guard readerTask == nil else { return }
+        readerTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                guard let url = Bundle.main.url(forResource: "PartnerDirectory", withExtension: "js") else {
+                    throw DirectoryError.unavailable
+                }
+                let script = try String(contentsOf: url, encoding: .utf8)
+                _ = try await webView.evaluateJavaScript(script + "; true;")
+                let roles = try await query(authors: [Self.owner], tags: ["savedd:admin-roles", "presearchstr:admin-roles"], limit: 8)
+                let authorsResult = try await webView.callAsyncJavaScript(
+                    "return SaveddPartnerReader.trustedAuthors(events)",
+                    arguments: ["events": roles], in: nil, contentWorld: .page
+                )
+                guard let authors = authorsResult as? [String] else { throw DirectoryError.unavailable }
+                let events = try await query(authors: authors, tags: ["savedd:partners"], limit: 20)
+                let result = try await webView.callAsyncJavaScript(
+                    "return SaveddPartnerReader.resolveDirectory(events, authors)",
+                    arguments: ["events": events, "authors": authors], in: nil, contentWorld: .page
+                )
+                try Task.checkCancellation()
+                let data = try JSONSerialization.data(withJSONObject: result)
+                let records = try JSONDecoder().decode([SaveddPartner].self, from: data)
+                partners = records.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+                isLoading = false
+                stop()
+            } catch {
+                if !Task.isCancelled { failed() }
+            }
         }
     }
 
-    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard message.name == "partnerDirectory", message.frameInfo.isMainFrame,
-              let body = message.body as? [String: Any],
-              let status = body["status"] as? String else { return }
-        guard status == "ready", let raw = body["partners"],
-              let data = try? JSONSerialization.data(withJSONObject: raw),
-              let records = try? JSONDecoder().decode([SaveddPartner].self, from: data) else { failed(); return }
-        partners = records.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-        isLoading = false
-        stop()
+    private struct RelayReply: Sendable {
+        let events: [String]
+        let complete: Bool
+    }
+    private enum DirectoryError: Error { case unavailable }
+
+    private func query(authors: [String], tags: [String], limit: Int) async throws -> [[String: Any]] {
+        let filter: [String: Any] = ["kinds": [30078], "authors": authors, "#d": tags, "limit": limit]
+        let request = String(data: try JSONSerialization.data(withJSONObject: ["REQ", "savedd-ios-directory", filter]), encoding: .utf8)!
+        let replies = await withTaskGroup(of: RelayReply.self, returning: [RelayReply].self) { group in
+            for relay in Self.relays {
+                group.addTask { await Self.queryRelay(relay, request: request, authors: authors, tags: tags, limit: limit) }
+            }
+            var replies: [RelayReply] = []
+            for await reply in group { replies.append(reply) }
+            return replies
+        }
+        try Task.checkCancellation()
+        guard replies.contains(where: \.complete) else { throw DirectoryError.unavailable }
+        return replies.flatMap(\.events).compactMap { json in
+            guard let data = json.data(using: .utf8) else { return nil }
+            return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        }
+    }
+
+    private nonisolated static func queryRelay(_ address: String, request: String, authors: [String], tags: [String], limit: Int) async -> RelayReply {
+        guard let url = URL(string: address), !Task.isCancelled else { return RelayReply(events: [], complete: false) }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.httpShouldSetCookies = false
+        configuration.timeoutIntervalForRequest = 5
+        let session = URLSession(configuration: configuration)
+        let socket = session.webSocketTask(with: url)
+        let deadline = Task {
+            try? await Task.sleep(for: .seconds(5))
+            if !Task.isCancelled { socket.cancel(with: .goingAway, reason: nil) }
+        }
+        defer {
+            deadline.cancel()
+            socket.cancel(with: .normalClosure, reason: nil)
+            session.invalidateAndCancel()
+        }
+        return await withTaskCancellationHandler {
+            var events: [String] = []
+            do {
+                socket.resume()
+                try await socket.send(.string(request))
+                for _ in 0..<256 {
+                    try Task.checkCancellation()
+                    let message = try await socket.receive()
+                    let data: Data
+                    switch message {
+                    case .string(let text): data = Data(text.utf8)
+                    case .data(let bytes): data = bytes
+                    @unknown default: continue
+                    }
+                    guard data.count <= 1_000_000,
+                          let frame = try JSONSerialization.jsonObject(with: data) as? [Any], frame.count >= 2,
+                          frame[1] as? String == "savedd-ios-directory" else { continue }
+                    if frame[0] as? String == "EOSE" { return RelayReply(events: events, complete: true) }
+                    guard frame[0] as? String == "EVENT", frame.count >= 3,
+                          let event = frame[2] as? [String: Any], event["kind"] as? Int == 30078,
+                          let author = event["pubkey"] as? String, authors.contains(author),
+                          let eventTags = event["tags"] as? [[String]],
+                          let d = eventTags.first(where: { $0.first == "d" }), d.count >= 2, tags.contains(d[1]),
+                          events.count < limit,
+                          let encoded = try? JSONSerialization.data(withJSONObject: event),
+                          let json = String(data: encoded, encoding: .utf8) else { continue }
+                    events.append(json)
+                }
+            } catch { /* an offline relay must not block the others */ }
+            return RelayReply(events: events, complete: false)
+        } onCancel: {
+            socket.cancel(with: .goingAway, reason: nil)
+        }
     }
 
     func stop() {
         isLoading = false
+        readerTask?.cancel()
+        readerTask = nil
         timeout?.cancel()
         timeout = nil
-        webView?.configuration.userContentController.removeScriptMessageHandler(forName: "partnerDirectory")
         webView?.stopLoading()
         webView = nil
     }
 
     private func failed() {
         error = "We couldn’t load the partner directory. You can retry, enter a code, or skip for now."
-        isLoading = false
         stop()
     }
 }

@@ -18,8 +18,8 @@ the time of implementation; native reading does not require changing or merging
 the website. Admin-approved partners are public kind 30078 records with d-tag
 `savedd:partners`, containing `{ version: 1, partners: [{ slug, pubkey, name }] }`.
 
-The bundled JavaScript reader queries the website's public relays, verifies Nostr
-signatures, loads owner-signed canonical/legacy admin roles, and accepts the latest
+Native URLSession requests query the website's public relays. The bundled JavaScript
+reader verifies Nostr signatures, resolves owner-signed canonical/legacy admin roles, and accepts the latest
 directory only from the owner or currently approved admins. Empty directories and
 admin removals are respected. No private key or login is required. Search/filtering
 is local: typed names and codes are not sent to relays. Initials are intentional
@@ -77,7 +77,7 @@ Once the website's email flow is deployed:
 2. On that origin, signup can read `localStorage['savedd:ios-onboarding']`:
    `{ version: 1, theme, languageFilter, privacyMode, referralCode, partnerPubkey,
    partnerName }`. This is untrusted client input; revalidate partner membership
-   and code server-side, and enforce first-touch/account rules there.
+and code server-side, and enforce first-touch/account rules there.
 3. After successful email authentication, save the preferences to the user's
    account using the website's new authenticated API. Do not infer authentication
    from opening a URL or closing a screen. Resolve pending codes through the same

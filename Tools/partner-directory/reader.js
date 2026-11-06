@@ -110,10 +110,9 @@ export async function loadDirectory() {
   return resolveDirectory(events, trusted);
 }
 
-if (globalThis.webkit?.messageHandlers?.partnerDirectory) {
-  loadDirectory().then(partners => {
-    globalThis.webkit.messageHandlers.partnerDirectory.postMessage({ status: 'ready', partners });
-  }).catch(() => {
-    globalThis.webkit.messageHandlers.partnerDirectory.postMessage({ status: 'error' });
-  });
-}
+// iOS performs requests with URLSession rather than relying on background
+// WebKit networking/timers. Only these synchronous verification calls are used.
+globalThis.SaveddPartnerReader = {
+  trustedAuthors: events => [...trustedAuthors(events)],
+  resolveDirectory: (events, authors) => resolveDirectory(events, new Set(authors)),
+};
