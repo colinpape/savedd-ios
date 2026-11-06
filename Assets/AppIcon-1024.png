@@ -1,1 +1,6 @@
-PLACEHOLDER - binary PNG icon will be added separately
+This file is a placeholder. The actual 1024x1024 PNG app icon (gold Christian cross inside magnifying glass on dark burgundy #2C0812) is available for download from the conversation artifacts as savedd_cross_v3.png.
+
+To use:
+1. Download the 1024x1024 PNG
+2. In Xcode Assets.xcassets > AppIcon, drop it into the App Store slot
+3. Xcode generates the remaining sizes
