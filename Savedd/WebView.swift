@@ -10,30 +10,12 @@ struct WebView: UIViewRepresentable {
         let config = WKWebViewConfiguration()
         config.allowsInlineMediaPlayback = true
 
-        // Force color-scheme: dark so sites that check prefers-color-scheme see dark mode
-        let darkSchemeScript = """
-        (function() {
-            const style = document.createElement('style');
-            style.id = 'savedd-force-dark';
-            style.innerHTML = 'html { color-scheme: dark !important; }';
-            (document.head || document.documentElement).appendChild(style);
-            document.documentElement.style.colorScheme = 'dark';
-        })();
-        """
-
-        let userScript = WKUserScript(
-            source: darkSchemeScript,
-            injectionTime: .atDocumentStart,
-            forMainFrameOnly: false
-        )
-        config.userContentController.addUserScript(userScript)
-
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
 
-        // Also set the UIKit trait so the web view itself reports dark
-        webView.overrideUserInterfaceStyle = .dark
+        // Identify as the Savedd app so savedd.com can auto-apply dark mode
+        webView.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 SaveddApp/1.0"
 
         // Dark background so there's no white flash before the page loads
         webView.isOpaque = false
