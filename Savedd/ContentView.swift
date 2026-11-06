@@ -8,6 +8,8 @@ struct ContentView: View {
     @State private var searchText = ""
     @State private var canGoBack = false
     @State private var canGoForward = false
+    @State private var backHistory: [HistoryItem] = []
+    @State private var forwardHistory: [HistoryItem] = []
     @State private var showTabs = false
     @State private var showBookmarks = false
     @State private var showShare = false
@@ -29,8 +31,14 @@ struct ContentView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            WebView(url: activeURL, canGoBack: $canGoBack, canGoForward: $canGoForward)
-                .edgesIgnoringSafeArea(.top)
+            WebView(
+                url: activeURL,
+                canGoBack: $canGoBack,
+                canGoForward: $canGoForward,
+                backHistory: $backHistory,
+                forwardHistory: $forwardHistory
+            )
+            .edgesIgnoringSafeArea(.top)
             
             // Safari-style bottom bar
             VStack(spacing: 8) {
@@ -100,7 +108,31 @@ struct ContentView: View {
                 // Action buttons
                 HStack(spacing: 0) {
                     ToolbarButton(icon: "chevron.left", action: goBack, disabled: !canGoBack)
+                        .contextMenu {
+                            if backHistory.isEmpty {
+                                Text("No back history")
+                            } else {
+                                ForEach(backHistory) { item in
+                                    Button(item.title) {
+                                        loadURL(item.url)
+                                    }
+                                }
+                            }
+                        }
+                    
                     ToolbarButton(icon: "chevron.right", action: goForward, disabled: !canGoForward)
+                        .contextMenu {
+                            if forwardHistory.isEmpty {
+                                Text("No forward history")
+                            } else {
+                                ForEach(forwardHistory) { item in
+                                    Button(item.title) {
+                                        loadURL(item.url)
+                                    }
+                                }
+                            }
+                        }
+                    
                     ToolbarButton(icon: "square.and.arrow.up", action: shareCurrentPage)
                     ToolbarButton(icon: "book", action: { showBookmarks = true })
                     ToolbarButton(icon: "square.on.square", action: { showTabs = true })
@@ -160,11 +192,16 @@ struct ContentView: View {
     }
     
     private func goBack() {
-        // Placeholder
+        // Single step back — full history is available via long-press menu
+        if let first = backHistory.first {
+            loadURL(first.url)
+        }
     }
     
     private func goForward() {
-        // Placeholder
+        if let first = forwardHistory.first {
+            loadURL(first.url)
+        }
     }
     
     private func newTab() {
