@@ -402,13 +402,17 @@ struct SaveddPreferencesForm: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Picker("Search language", selection: $store.preferences.language) {
-                    ForEach(Self.languages, id: \.0) { language in Text(language.1).tag(language.0) }
-                    if !Self.languages.contains(where: { $0.0 == store.preferences.language }) {
-                        Text(Self.languageName(store.preferences.language)).tag(store.preferences.language)
+                Text("Search language").font(.headline)
+                HStack {
+                    Picker("Search language", selection: $store.preferences.language) {
+                        ForEach(Self.languages, id: \.0) { language in Text(language.1).tag(language.0) }
+                        if !Self.languages.contains(where: { $0.0 == store.preferences.language }) {
+                            Text(Self.languageName(store.preferences.language)).tag(store.preferences.language)
+                        }
                     }
+                    .labelsHidden().pickerStyle(.menu).frame(minHeight: 48)
+                    Spacer()
                 }
-                .pickerStyle(.menu).frame(minHeight: 48)
                 Text("Preferred language for results where supported. App menus are currently in English.")
                     .font(.caption).foregroundStyle(SaveddBrand.muted)
             }
