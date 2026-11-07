@@ -6,7 +6,7 @@ struct SaveddRootView: View {
 
     var body: some View {
         Group {
-            if store.isComplete {
+            if store.isComplete || visualTabsPreview {
                 ContentView(initialURL: firstBrowserURL ?? referralURL(SaveddSearchEngine.homeURL))
                     .preferredColorScheme(store.preferences.appearance.colorScheme)
             } else {
@@ -18,6 +18,14 @@ struct SaveddRootView: View {
             }
         }
         .environmentObject(store)
+    }
+
+    private var visualTabsPreview: Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments.contains("--visual-tabs-preview")
+        #else
+        return false
+        #endif
     }
 
     private func referralURL(_ url: URL) -> URL {

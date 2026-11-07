@@ -14,6 +14,10 @@ struct WebView: UIViewRepresentable {
     @Binding var backHistory: [HistoryItem]
     @Binding var forwardHistory: [HistoryItem]
     var preferences: SaveddPreferences = SaveddPreferences()
+    var isActive = true
+    var snapshotRequest = UUID()
+    var onPageChanged: (URL, String) -> Void = { _, _ in }
+    var onSnapshot: (UIImage) -> Void = { _ in }
     var goToHistoryItem: ((HistoryItem) -> Void)? = nil
 
     func makeUIView(context: Context) -> WKWebView {
@@ -42,7 +46,15 @@ struct WebView: UIViewRepresentable {
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
+        let becameActive = isActive && !context.coordinator.parent.isActive
         context.coordinator.parent = self
+        if becameActive {
+            DispatchQueue.main.async { context.coordinator.parent.updateHistory(webView) }
+        }
+        if isActive, context.coordinator.snapshotRequest != snapshotRequest {
+            context.coordinator.snapshotRequest = snapshotRequest
+            DispatchQueue.main.async { context.coordinator.capture(webView) }
+        }
         let preferencesChanged = context.coordinator.appliedPreferences != preferences.webPayload
         if preferencesChanged {
             context.coordinator.appliedPreferences = preferences.webPayload
@@ -56,8 +68,11 @@ struct WebView: UIViewRepresentable {
             webView.scrollView.backgroundColor = webView.backgroundColor
         }
         if webView.url != url {
-            let request = URLRequest(url: url)
-            webView.load(request)
+            if url.isFileURL {
+                webView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+            } else {
+                webView.load(URLRequest(url: url))
+            }
         } else if preferencesChanged, let currentURL = webView.url,
                   currentURL.scheme == "https",
                   ["savedd.com", "www.savedd.com"].contains(currentURL.host ?? ""),
@@ -74,6 +89,7 @@ struct WebView: UIViewRepresentable {
     }
 
     private func updateHistory(_ webView: WKWebView) {
+        guard isActive else { return }
         canGoBack = webView.canGoBack
         canGoForward = webView.canGoForward
 
@@ -94,10 +110,32 @@ struct WebView: UIViewRepresentable {
     class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
         var parent: WebView
         var appliedPreferences: String
+        var snapshotRequest: UUID
 
         init(_ parent: WebView) {
             self.parent = parent
+            self.snapshotRequest = parent.snapshotRequest
             self.appliedPreferences = parent.preferences.webPayload
+        }
+
+        // Use WebKit's callback API: the async overlay requires a newer runtime.
+        func capture(_ webView: WKWebView) {
+            guard !webView.isLoading, webView.bounds.width > 0,
+                  webView.bounds.height > 0, let url = webView.url else { return }
+            let configuration = WKSnapshotConfiguration()
+            configuration.snapshotWidth = 320
+            webView.takeSnapshot(with: configuration) { [weak self, weak webView] image, _ in
+                guard let self, let webView, webView.url == url,
+                      !webView.isLoading, let image else { return }
+                // Keep small in-memory previews; never persist page screenshots to disk.
+                let size = CGSize(width: 320, height: 320 * image.size.height / image.size.width)
+                let format = UIGraphicsImageRendererFormat()
+                format.scale = 1
+                let thumbnail = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+                    image.draw(in: CGRect(origin: .zero, size: size))
+                }
+                self.parent.onSnapshot(thumbnail)
+            }
         }
 
         func webView(_ webView: WKWebView,
@@ -117,6 +155,10 @@ struct WebView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            if let url = webView.url {
+                parent.onPageChanged(url, webView.title?.isEmpty == false ? webView.title! : (url.host ?? "New Tab"))
+            }
+            capture(webView)
             parent.updateHistory(webView)
             if let current = webView.url, current != parent.url {
                 parent.url = current
@@ -124,6 +166,7 @@ struct WebView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+            if let url = webView.url { parent.onPageChanged(url, url.host ?? "New Tab") }
             parent.updateHistory(webView)
             if let current = webView.url, current != parent.url {
                 parent.url = current

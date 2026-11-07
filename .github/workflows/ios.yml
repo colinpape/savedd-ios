@@ -21,7 +21,7 @@ jobs:
       - name: Build for iOS Simulator without signing
         run: xcodebuild -project Savedd.xcodeproj -scheme Savedd -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build
       - name: Capture first-run screens
-        timeout-minutes: 8
+        timeout-minutes: 12
         run: |
           DEVICE_ID=$(xcrun simctl list devices available --json | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for group in d["devices"].values() for x in group if "iPhone" in x["name"]))')
           xcrun simctl boot "$DEVICE_ID"
@@ -51,6 +51,10 @@ jobs:
             done
             test "$CAPTURED" = true
           done
+          xcrun simctl launch "$DEVICE_ID" com.savedd.browser --visual-tabs-preview
+          sleep 20
+          xcrun simctl io "$DEVICE_ID" screenshot screenshots/visual-tabs.png
+          xcrun simctl terminate "$DEVICE_ID" com.savedd.browser
       - uses: actions/upload-artifact@v4
         if: always()
         with:
