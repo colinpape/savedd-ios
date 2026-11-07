@@ -47,7 +47,8 @@ is not needed to run the native app; the JavaScript resource is checked in.
 
 ## Website settings bridge
 
-An origin-restricted, main-frame-only WKUserScript merges `theme`, `languageFilter`,
+An origin-restricted, main-frame-only WKUserScript trusts exactly the HTTPS origins
+`savedd.com` and `www.savedd.com` (the current redirect destination), and merges `theme`, `languageFilter`,
 and `privacyMode` into `savedd:app-config` **before the website mounts**. A revision
 marker avoids reapplying the same native choices on each navigation, preserving
 subsequent changes made in the website. Other website settings and the existing
