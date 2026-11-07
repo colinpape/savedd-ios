@@ -1,0 +1,19 @@
+name: Release archive check
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  archive:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Archive Release for a generic iOS device without signing
+        run: |
+          xcodebuild -project Savedd.xcodeproj -scheme Savedd -configuration Release -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/Savedd.xcarchive" CODE_SIGNING_ALLOWED=NO archive
+      - name: Verify privacy manifest is included
+        run: plutil -lint "$RUNNER_TEMP/Savedd.xcarchive/Products/Applications/Savedd.app/PrivacyInfo.xcprivacy"
