@@ -52,7 +52,9 @@ jobs:
             test "$CAPTURED" = true
           done
           xcrun simctl launch "$DEVICE_ID" com.savedd.browser --visual-tabs-preview
-          sleep 45
+          sleep 8
+          xcrun simctl io "$DEVICE_ID" screenshot screenshots/browser-voice-button.png
+          sleep 37
           xcrun simctl io "$DEVICE_ID" screenshot screenshots/visual-tabs.png
           xcrun simctl terminate "$DEVICE_ID" com.savedd.browser
       - uses: actions/upload-artifact@v4
