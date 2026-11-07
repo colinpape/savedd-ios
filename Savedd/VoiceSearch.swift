@@ -53,10 +53,13 @@ final class VoiceSearch: ObservableObject {
     private func beginRecognition(language: String, id: UUID) {
         let locales = SFSpeechRecognizer.supportedLocales()
         let current = Locale.current
+        // "Any language" is a search-result filter; dictation still needs a spoken locale.
+        let recognitionLanguage = language.isEmpty
+            ? (current.language.languageCode?.identifier ?? "en") : language
         let locale = locales.first(where: {
-            $0.identifier == current.identifier && $0.language.languageCode?.identifier == language
+            $0.identifier == current.identifier && $0.language.languageCode?.identifier == recognitionLanguage
         }) ?? locales.sorted(by: { $0.identifier < $1.identifier }).first(where: {
-            $0.language.languageCode?.identifier == language
+            $0.language.languageCode?.identifier == recognitionLanguage
         })
         guard let locale, let recognizer = SFSpeechRecognizer(locale: locale), recognizer.isAvailable else {
             fail("Speech recognition isn’t available for your selected language right now. Please try again later or type your search.")
