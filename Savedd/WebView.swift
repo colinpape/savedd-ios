@@ -58,8 +58,10 @@ struct WebView: UIViewRepresentable {
         if webView.url != url {
             let request = URLRequest(url: url)
             webView.load(request)
-        } else if preferencesChanged, webView.url?.scheme == "https", webView.url?.host == "savedd.com" {
-            let currentURL = webView.url
+        } else if preferencesChanged, let currentURL = webView.url,
+                  currentURL.scheme == "https",
+                  ["savedd.com", "www.savedd.com"].contains(currentURL.host ?? ""),
+                  currentURL.port == nil || currentURL.port == 443 {
             webView.evaluateJavaScript(preferences.bootstrapScript) { _, error in
                 // Reload the current Savedd page so React reads the new config.
                 // Keep the same WKWebView and its back/forward list. If the user

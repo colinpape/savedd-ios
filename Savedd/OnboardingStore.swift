@@ -80,7 +80,8 @@ extension SaveddPreferences {
     var bootstrapScript: String {
         """
         (() => {
-          if (window !== window.top || location.origin !== 'https://savedd.com') return;
+          const trustedOrigins = ['https://savedd.com', 'https://www.savedd.com'];
+          if (window !== window.top || !trustedOrigins.includes(location.origin)) return;
           try {
             const settings = \(webPayload);
             const revision = JSON.stringify(settings);
