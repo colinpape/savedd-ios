@@ -14,6 +14,7 @@ struct WebView: UIViewRepresentable {
     @Binding var backHistory: [HistoryItem]
     @Binding var forwardHistory: [HistoryItem]
     var preferences: SaveddPreferences = SaveddPreferences()
+    var topContentInset: CGFloat = 0
     var isActive = true
     var snapshotRequest = UUID()
     var onPageChanged: (URL, String) -> Void = { _, _ in }
@@ -30,10 +31,16 @@ struct WebView: UIViewRepresentable {
         ))
 
         let webView = WKWebView(frame: .zero, configuration: config)
+        // Clip at the actual UIKit viewport, which includes the under-scroll
+        // area on iOS 26 and stays inside the safe area on older versions.
+        webView.clipsToBounds = true
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
         context.coordinator.observeTitle(of: webView)
         webView.allowsBackForwardNavigationGestures = true
+        // The browser owns insets, including its bottom keyboard-aware toolbar.
+        webView.scrollView.contentInsetAdjustmentBehavior = .never
+        updateViewport(webView)
 
         webView.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 SaveddApp/1.0"
 
@@ -47,6 +54,7 @@ struct WebView: UIViewRepresentable {
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
+        updateViewport(webView)
         let becameActive = isActive && !context.coordinator.parent.isActive
         context.coordinator.parent = self
         if becameActive {
@@ -96,6 +104,22 @@ struct WebView: UIViewRepresentable {
         }
         // Navigation delegate callbacks publish history; avoid changing SwiftUI
         // state synchronously during updateUIView.
+    }
+
+    private func updateViewport(_ webView: WKWebView) {
+        #if compiler(>=6.2)
+        if #available(iOS 26.0, *) {
+            let insets = UIEdgeInsets(top: max(0, topContentInset), left: 0, bottom: 0, right: 0)
+            guard webView.obscuredContentInsets != insets || webView.scrollView.contentInset != insets else { return }
+            let wasAtTop = webView.scrollView.contentOffset.y <= -webView.scrollView.contentInset.top + 1
+            webView.obscuredContentInsets = insets
+            webView.scrollView.contentInset = insets
+            webView.scrollView.verticalScrollIndicatorInsets = insets
+            if wasAtTop {
+                webView.scrollView.setContentOffset(CGPoint(x: webView.scrollView.contentOffset.x, y: -insets.top), animated: false)
+            }
+        }
+        #endif
     }
 
     private func updateHistory(_ webView: WKWebView) {

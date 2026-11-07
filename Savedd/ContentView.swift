@@ -40,6 +40,13 @@ struct ContentView: View {
         _tabs = State(initialValue: [BrowserTab(url: initialURL)])
     }
     
+    private var supportsUnderScroll: Bool {
+        #if compiler(>=6.2)
+        if #available(iOS 26.0, *) { return true }
+        #endif
+        return false
+    }
+
     private var displayDomain: String {
         let url = tabs[activeTabIndex].url
         return url.host ?? url.absoluteString
@@ -56,6 +63,7 @@ struct ContentView: View {
                         backHistory: activeState($backHistory, for: tab.id),
                         forwardHistory: activeState($forwardHistory, for: tab.id),
                         preferences: onboarding.preferences,
+                        topContentInset: supportsUnderScroll ? geometry.safeAreaInsets.top : 0,
                         isActive: tab.id == tabs[activeTabIndex].id,
                         snapshotRequest: snapshotRequest,
                         onPageChanged: { url, title in
@@ -76,7 +84,20 @@ struct ContentView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .ignoresSafeArea(.container, edges: .top)
+            .ignoresSafeArea(.container, edges: supportsUnderScroll ? .top : [])
+            .overlay(alignment: .top) {
+                if supportsUnderScroll {
+                    // Scrolling content can pass under this noninteractive status-bar
+                    // backdrop. WebKit keeps fixed/sticky controls below this area.
+                    Rectangle().fill(.ultraThinMaterial)
+                        .frame(height: geometry.safeAreaInsets.top)
+                        // This overlay is laid out in the safe container. Move
+                        // its backdrop up into the status-bar region itself.
+                        .offset(y: -geometry.safeAreaInsets.top)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
             .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 8) {
                 if isEditingAddress {
@@ -100,6 +121,7 @@ struct ContentView: View {
                             TextField("Search or enter address", text: $searchText)
                                 .focused($addressFieldFocused)
                                 .textFieldStyle(.plain)
+                                .keyboardType(.webSearch)
                                 .autocapitalization(.none)
                                 .disableAutocorrection(true)
                                 .font(.system(size: 16))
@@ -224,6 +246,10 @@ struct ContentView: View {
                 Color(UIColor.systemBackground).ignoresSafeArea(.container, edges: .bottom)
             }
             }
+        }
+        .background {
+            // Only the browser background extends behind the status bar and corners.
+            Color(UIColor.systemBackground).ignoresSafeArea(.container)
         }
         .confirmationDialog("Clear recent searches and addresses?", isPresented: $confirmClearHistory, titleVisibility: .visible) {
             Button("Clear history", role: .destructive) { addressHistory.clear() }
@@ -373,14 +399,15 @@ struct ContentView: View {
             ("The Reading Room", "#f6eddf", "#76372d", "Find your next chapter.", "Books for a quiet afternoon")
         ]
         return pages.enumerated().map { index, page in
-            let url = FileManager.default.temporaryDirectory.appendingPathComponent("tab-preview-\(index).html")
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("tab-preview-safe-area-\(index).html")
             let html = """
-            <html><head><meta name="viewport" content="width=device-width, initial-scale=1">
+            <html><head><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
             <title>\(page.0)</title><style>
             body{margin:0;background:\(page.1);color:\(page.2);font:20px Georgia;padding:32px}
             header{font:14px sans-serif;letter-spacing:3px;border-bottom:1px solid;padding-bottom:20px}
             h1{font-size:42px;margin-top:70px}section{height:130px;border:1px solid;border-radius:20px;margin:24px 0;opacity:.7}
             </style></head><body><header>\(page.0.uppercased())</header><h1>\(page.3)</h1>
+            <button style="position:fixed;top:4px;right:8px;z-index:10;padding:10px;font:16px sans-serif">Sign in</button>
             <p>\(page.4)</p><section></section><section></section></body></html>
             """
             if !FileManager.default.fileExists(atPath: url.path) {

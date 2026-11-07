@@ -7,7 +7,11 @@ permissions:
   contents: read
 jobs:
   validate:
-    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, macos-26]
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -57,9 +61,9 @@ jobs:
             test "$CAPTURED" = true
           done
           xcrun simctl launch "$DEVICE_ID" com.savedd.browser --visual-tabs-preview
-          sleep 8
+          sleep 14
           xcrun simctl io "$DEVICE_ID" screenshot screenshots/browser-voice-button.png
-          sleep 37
+          sleep 31
           xcrun simctl io "$DEVICE_ID" screenshot screenshots/visual-tabs.png
           xcrun simctl terminate "$DEVICE_ID" com.savedd.browser
           xcrun simctl launch "$DEVICE_ID" com.savedd.browser --address-editor-preview
@@ -69,5 +73,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: onboarding-screens
+          name: onboarding-screens-${{ matrix.runner }}
           path: screenshots/
