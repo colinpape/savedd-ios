@@ -76,7 +76,9 @@ struct ContentView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .ignoresSafeArea(.container, edges: .top)
+            // Keep the functional page viewport inside the top and side safe areas.
+            // A CSS-fixed website header must not sit behind the camera/status icons.
+            .clipped()
             .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 8) {
                 if isEditingAddress {
@@ -100,6 +102,7 @@ struct ContentView: View {
                             TextField("Search or enter address", text: $searchText)
                                 .focused($addressFieldFocused)
                                 .textFieldStyle(.plain)
+                                .keyboardType(.webSearch)
                                 .autocapitalization(.none)
                                 .disableAutocorrection(true)
                                 .font(.system(size: 16))
@@ -224,6 +227,10 @@ struct ContentView: View {
                 Color(UIColor.systemBackground).ignoresSafeArea(.container, edges: .bottom)
             }
             }
+        }
+        .background {
+            // Only the browser background extends behind the status bar and corners.
+            Color(UIColor.systemBackground).ignoresSafeArea(.container)
         }
         .confirmationDialog("Clear recent searches and addresses?", isPresented: $confirmClearHistory, titleVisibility: .visible) {
             Button("Clear history", role: .destructive) { addressHistory.clear() }
@@ -373,14 +380,15 @@ struct ContentView: View {
             ("The Reading Room", "#f6eddf", "#76372d", "Find your next chapter.", "Books for a quiet afternoon")
         ]
         return pages.enumerated().map { index, page in
-            let url = FileManager.default.temporaryDirectory.appendingPathComponent("tab-preview-\(index).html")
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("tab-preview-safe-area-\(index).html")
             let html = """
-            <html><head><meta name="viewport" content="width=device-width, initial-scale=1">
+            <html><head><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
             <title>\(page.0)</title><style>
             body{margin:0;background:\(page.1);color:\(page.2);font:20px Georgia;padding:32px}
             header{font:14px sans-serif;letter-spacing:3px;border-bottom:1px solid;padding-bottom:20px}
             h1{font-size:42px;margin-top:70px}section{height:130px;border:1px solid;border-radius:20px;margin:24px 0;opacity:.7}
             </style></head><body><header>\(page.0.uppercased())</header><h1>\(page.3)</h1>
+            <button style="position:fixed;top:4px;right:8px;z-index:10;padding:10px;font:16px sans-serif">Sign in</button>
             <p>\(page.4)</p><section></section><section></section></body></html>
             """
             if !FileManager.default.fileExists(atPath: url.path) {

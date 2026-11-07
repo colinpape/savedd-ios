@@ -34,6 +34,9 @@ struct WebView: UIViewRepresentable {
         webView.uiDelegate = context.coordinator
         context.coordinator.observeTitle(of: webView)
         webView.allowsBackForwardNavigationGestures = true
+        // SwiftUI supplies the safe viewport above the toolbar/keyboard and below
+        // the status bar. Avoid applying a second set of scroll-view insets.
+        webView.scrollView.contentInsetAdjustmentBehavior = .never
 
         webView.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 SaveddApp/1.0"
 
