@@ -91,11 +91,13 @@ struct ContentView: View {
                     // backdrop. WebKit keeps fixed/sticky controls below this area.
                     Rectangle().fill(.ultraThinMaterial)
                         .frame(height: geometry.safeAreaInsets.top)
+                        // This overlay is laid out in the safe container. Move
+                        // its backdrop up into the status-bar region itself.
+                        .offset(y: -geometry.safeAreaInsets.top)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }
             }
-            .clipped()
             .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 8) {
                 if isEditingAddress {

@@ -31,6 +31,9 @@ struct WebView: UIViewRepresentable {
         ))
 
         let webView = WKWebView(frame: .zero, configuration: config)
+        // Clip at the actual UIKit viewport, which includes the under-scroll
+        // area on iOS 26 and stays inside the safe area on older versions.
+        webView.clipsToBounds = true
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
         context.coordinator.observeTitle(of: webView)
