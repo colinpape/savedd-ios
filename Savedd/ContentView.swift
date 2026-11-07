@@ -207,7 +207,7 @@ struct ContentView: View {
                 // Visit real local WebKit pages so CI captures actual snapshots, without network.
                 for index in tabs.indices {
                     activeTabIndex = index
-                    try? await Task.sleep(for: .seconds(2))
+                    try? await Task.sleep(for: .seconds(5))
                     snapshotRequest = UUID()
                 }
                 try? await Task.sleep(for: .seconds(1))
@@ -245,7 +245,9 @@ struct ContentView: View {
             </style></head><body><header>\(page.0.uppercased())</header><h1>\(page.3)</h1>
             <p>\(page.4)</p><section></section><section></section></body></html>
             """
-            try? html.write(to: url, atomically: true, encoding: .utf8)
+            if !FileManager.default.fileExists(atPath: url.path) {
+                try? html.write(to: url, atomically: true, encoding: .utf8)
+            }
             return BrowserTab(url: url, title: page.0)
         }
     }

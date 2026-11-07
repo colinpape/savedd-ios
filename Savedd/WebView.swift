@@ -69,7 +69,16 @@ struct WebView: UIViewRepresentable {
         }
         if webView.url != url {
             if url.isFileURL {
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("--visual-tabs-preview"),
+                   let html = try? String(contentsOf: url, encoding: .utf8) {
+                    webView.loadHTMLString(html, baseURL: url)
+                } else {
+                    webView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+                }
+                #else
                 webView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+                #endif
             } else {
                 webView.load(URLRequest(url: url))
             }
@@ -120,10 +129,11 @@ struct WebView: UIViewRepresentable {
 
         // Use WebKit's callback API: the async overlay requires a newer runtime.
         func capture(_ webView: WKWebView) {
-            guard !webView.isLoading, webView.bounds.width > 0,
+            guard parent.isActive, !webView.isLoading, webView.bounds.width > 0,
                   webView.bounds.height > 0, let url = webView.url else { return }
             let configuration = WKSnapshotConfiguration()
             configuration.snapshotWidth = 320
+            configuration.afterScreenUpdates = false
             webView.takeSnapshot(with: configuration) { [weak self, weak webView] image, _ in
                 guard let self, let webView, webView.url == url,
                       !webView.isLoading, let image else { return }
@@ -158,7 +168,9 @@ struct WebView: UIViewRepresentable {
             if let url = webView.url {
                 parent.onPageChanged(url, webView.title?.isEmpty == false ? webView.title! : (url.host ?? "New Tab"))
             }
-            capture(webView)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self, weak webView] in
+                if let webView { self?.capture(webView) }
+            }
             parent.updateHistory(webView)
             if let current = webView.url, current != parent.url {
                 parent.url = current
