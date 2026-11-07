@@ -31,13 +31,6 @@ struct ContentView: View {
         _tabs = State(initialValue: [BrowserTab(url: initialURL)])
     }
     
-    private var activeURL: Binding<URL> {
-        Binding(
-            get: { tabs[activeTabIndex].url },
-            set: { tabs[activeTabIndex].url = $0 }
-        )
-    }
-    
     private var displayDomain: String {
         let url = tabs[activeTabIndex].url
         return url.host ?? url.absoluteString
@@ -209,6 +202,7 @@ struct ContentView: View {
                     activeTabIndex = index
                     try? await Task.sleep(for: .seconds(5))
                     snapshotRequest = UUID()
+                    try? await Task.sleep(for: .seconds(1))
                 }
                 try? await Task.sleep(for: .seconds(1))
                 activeTabIndex = 1

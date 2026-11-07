@@ -32,6 +32,7 @@ struct WebView: UIViewRepresentable {
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
+        context.coordinator.observeTitle(of: webView)
         webView.allowsBackForwardNavigationGestures = true
 
         webView.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 SaveddApp/1.0"
@@ -120,6 +121,17 @@ struct WebView: UIViewRepresentable {
         var parent: WebView
         var appliedPreferences: String
         var snapshotRequest: UUID
+        private var titleObservation: NSKeyValueObservation?
+
+        func observeTitle(of webView: WKWebView) {
+            titleObservation = webView.observe(\.title, options: [.new]) { [weak self] webView, _ in
+                guard let url = webView.url, let title = webView.title, !title.isEmpty else { return }
+                DispatchQueue.main.async { [weak self, weak webView] in
+                    guard webView?.url == url else { return }
+                    self?.parent.onPageChanged(url, title)
+                }
+            }
+        }
 
         init(_ parent: WebView) {
             self.parent = parent
@@ -167,6 +179,10 @@ struct WebView: UIViewRepresentable {
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             if let url = webView.url {
                 parent.onPageChanged(url, webView.title?.isEmpty == false ? webView.title! : (url.host ?? "New Tab"))
+                webView.evaluateJavaScript("document.title") { [weak self, weak webView] result, _ in
+                    guard webView?.url == url, let title = result as? String, !title.isEmpty else { return }
+                    self?.parent.onPageChanged(url, title)
+                }
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self, weak webView] in
                 if let webView { self?.capture(webView) }
