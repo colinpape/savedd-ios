@@ -40,6 +40,13 @@ struct ContentView: View {
         _tabs = State(initialValue: [BrowserTab(url: initialURL)])
     }
     
+    private var supportsUnderScroll: Bool {
+        #if compiler(>=6.2)
+        if #available(iOS 26.0, *) { return true }
+        #endif
+        return false
+    }
+
     private var displayDomain: String {
         let url = tabs[activeTabIndex].url
         return url.host ?? url.absoluteString
@@ -56,6 +63,7 @@ struct ContentView: View {
                         backHistory: activeState($backHistory, for: tab.id),
                         forwardHistory: activeState($forwardHistory, for: tab.id),
                         preferences: onboarding.preferences,
+                        topContentInset: supportsUnderScroll ? geometry.safeAreaInsets.top : 0,
                         isActive: tab.id == tabs[activeTabIndex].id,
                         snapshotRequest: snapshotRequest,
                         onPageChanged: { url, title in
@@ -76,8 +84,17 @@ struct ContentView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // Keep the functional page viewport inside the top and side safe areas.
-            // A CSS-fixed website header must not sit behind the camera/status icons.
+            .ignoresSafeArea(.container, edges: supportsUnderScroll ? .top : [])
+            .overlay(alignment: .top) {
+                if supportsUnderScroll {
+                    // Scrolling content can pass under this noninteractive status-bar
+                    // backdrop. WebKit keeps fixed/sticky controls below this area.
+                    Rectangle().fill(.ultraThinMaterial)
+                        .frame(height: geometry.safeAreaInsets.top)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
             .clipped()
             .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 8) {
