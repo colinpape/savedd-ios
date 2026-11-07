@@ -22,11 +22,16 @@ struct ContentView: View {
     @State private var showVoiceSearch = false
     @State private var focusAfterDictation = false
     @State private var shareItems: [Any] = []
+    @State private var shareTitle = ""
     @State private var isEditingAddress = false
     @FocusState private var addressFieldFocused: Bool
 
     init(initialURL: URL = SaveddSearchEngine.homeURL) {
         #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--share-menu-preview") {
+            _tabs = State(initialValue: [BrowserTab(url: SaveddSearchEngine.homeURL, title: "Savedd — Seek, and ye shall find.")])
+            return
+        }
         if ProcessInfo.processInfo.arguments.contains("--address-editor-preview") {
             _tabs = State(initialValue: [Self.previewTabs()[0]])
             _addressHistory = StateObject(wrappedValue: AddressHistoryStore(defaults: UserDefaults(suiteName: "savedd.address-preview")!))
@@ -267,7 +272,7 @@ struct ContentView: View {
             }
         }
         .sheet(isPresented: $showShare) {
-            ShareSheet(activityItems: shareItems)
+            ShareSheet(activityItems: shareItems, bookmarkTitle: shareTitle, onAddBookmark: bookmarkStore.add)
         }
         .sheet(isPresented: $showVoiceSearch, onDismiss: {
             if focusAfterDictation {
@@ -287,6 +292,10 @@ struct ContentView: View {
         }
         .task {
             #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--share-menu-preview") {
+                try? await Task.sleep(for: .seconds(2))
+                shareCurrentPage()
+            }
             if ProcessInfo.processInfo.arguments.contains("--address-editor-preview") {
                 addressHistory.clear()
                 for text in ["https://example.com", "gardening ideas", "local coffee shops"] {
@@ -475,6 +484,8 @@ struct ContentView: View {
     private func shareCurrentPage() {
         let url = tabs[activeTabIndex].url
         shareItems = [url]
+        let title = tabs[activeTabIndex].title
+        shareTitle = title.isEmpty || title == "New Tab" ? (url.host ?? url.absoluteString) : title
         showShare = true
     }
 }
@@ -526,18 +537,30 @@ struct TabSwitcherView: View {
             .background(Color(UIColor.systemGroupedBackground))
             .navigationTitle(tabs.count == 1 ? "1 Tab" : "\(tabs.count) Tabs")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                HStack {
                     Button {
                         onNewTab()
                         dismiss()
                     } label: {
-                        Label("New Tab", systemImage: "plus")
+                        Image(systemName: "plus")
+                            .font(.system(size: 22, weight: .semibold))
+                            .frame(width: 44, height: 44)
                     }
+                    .accessibilityLabel("New tab")
+                    .accessibilityHint("Open a new Savedd tab")
+                    Spacer()
+                    Button { dismiss() } label: {
+                        Image(systemName: "checkmark.square")
+                            .font(.system(size: 24, weight: .semibold))
+                            .frame(width: 44, height: 44)
+                    }
+                    .accessibilityLabel("Done")
+                    .accessibilityHint("Return to the selected tab")
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
-                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 8)
+                .background(.regularMaterial)
             }
             .tint(SaveddBrand.gold)
         }
@@ -641,8 +664,6 @@ struct BookmarksView: View {
     @ObservedObject var store: BookmarkStore
     var onSelect: (Bookmark) -> Void
     @Environment(\.dismiss) private var dismiss
-    @State private var newTitle = ""
-    @State private var newURL = ""
     @State private var showAdd = false
     
     var body: some View {
@@ -676,50 +697,120 @@ struct BookmarksView: View {
                 }
             }
             .sheet(isPresented: $showAdd) {
-                NavigationView {
-                    Form {
-                        TextField("Title", text: $newTitle)
-                        TextField("URL", text: $newURL)
-                            .autocapitalization(.none)
-                            .disableAutocorrection(true)
-                    }
-                    .navigationTitle("Add Bookmark")
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Cancel") { showAdd = false }
-                        }
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Add") {
-                                addBookmark()
-                                showAdd = false
-                            }
-                            .disabled(newTitle.isEmpty || URL(string: newURL) == nil)
-                        }
-                    }
-                }
+                BookmarkEditorView(title: "", url: "", onSave: { bookmark in
+                    store.add(bookmark)
+                    showAdd = false
+                }, onCancel: { showAdd = false })
             }
         }
     }
-    
-    private func addBookmark() {
-        var urlString = newURL
-        if !urlString.hasPrefix("http") {
-            urlString = "https://" + urlString
+}
+
+struct BookmarkEditorView: View {
+    @State private var title: String
+    @State private var address: String
+    let onSave: (Bookmark) -> Void
+    let onCancel: () -> Void
+
+    init(title: String, url: String, onSave: @escaping (Bookmark) -> Void, onCancel: @escaping () -> Void) {
+        _title = State(initialValue: title)
+        _address = State(initialValue: url)
+        self.onSave = onSave
+        self.onCancel = onCancel
+    }
+
+    private var bookmarkURL: URL? {
+        guard let destination = SaveddSearchEngine.destination(for: address), !destination.isSearch,
+              destination.url.user == nil, destination.url.password == nil else { return nil }
+        return destination.url
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                TextField("Title", text: $title)
+                    .accessibilityIdentifier("bookmarkTitle")
+                TextField("Website address", text: $address)
+                    .keyboardType(.URL)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .accessibilityIdentifier("bookmarkAddress")
+            }
+            .navigationTitle("Add Bookmark")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        guard let url = bookmarkURL else { return }
+                        onSave(Bookmark(title: title.trimmingCharacters(in: .whitespacesAndNewlines), url: url))
+                    }
+                    .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || bookmarkURL == nil)
+                }
+            }
+            .tint(SaveddBrand.gold)
         }
-        guard let url = URL(string: urlString) else { return }
-        store.add(Bookmark(title: newTitle, url: url))
-        newTitle = ""
-        newURL = ""
+    }
+}
+
+/// A native action in the system share menu, using its built-in activity-editor
+/// presentation rather than trying to present a second SwiftUI sheet mid-dismissal.
+final class AddBookmarkActivity: UIActivity {
+    private var url: URL?
+    private let title: String
+    private let onSave: (Bookmark) -> Void
+
+    init(title: String, onSave: @escaping (Bookmark) -> Void) {
+        self.title = title
+        self.onSave = onSave
+        super.init()
+    }
+
+    override class var activityCategory: UIActivity.Category { .action }
+    override var activityType: UIActivity.ActivityType? {
+        UIActivity.ActivityType("com.savedd.browser.add-bookmark")
+    }
+    override var activityTitle: String? { "Add Bookmark" }
+    override var activityImage: UIImage? { UIImage(systemName: "bookmark") }
+
+    override func canPerform(withActivityItems activityItems: [Any]) -> Bool {
+        activityItems.contains { item in
+            guard let url = item as? URL else { return false }
+            return ["https", "http"].contains(url.scheme?.lowercased() ?? "")
+                && url.host != nil && url.user == nil && url.password == nil
+        }
+    }
+
+    override func prepare(withActivityItems activityItems: [Any]) {
+        url = activityItems.compactMap { $0 as? URL }.first
+    }
+
+    override var activityViewController: UIViewController? {
+        guard let url else { return nil }
+        return UIHostingController(rootView: BookmarkEditorView(
+            title: title.isEmpty ? (url.host ?? url.absoluteString) : title,
+            url: url.absoluteString,
+            onSave: { [weak self] bookmark in
+                self?.onSave(bookmark)
+                self?.activityDidFinish(true)
+            },
+            onCancel: { [weak self] in self?.activityDidFinish(false) }
+        ))
     }
 }
 
 struct ShareSheet: UIViewControllerRepresentable {
     var activityItems: [Any]
-    
+    var bookmarkTitle: String
+    var onAddBookmark: (Bookmark) -> Void
+
     func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+        UIActivityViewController(activityItems: activityItems,
+                                 applicationActivities: [AddBookmarkActivity(title: bookmarkTitle, onSave: onAddBookmark)])
     }
-    
+
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 

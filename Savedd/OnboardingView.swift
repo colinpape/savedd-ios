@@ -24,6 +24,7 @@ struct SaveddRootView: View {
         #if DEBUG
         return ProcessInfo.processInfo.arguments.contains("--visual-tabs-preview")
             || ProcessInfo.processInfo.arguments.contains("--address-editor-preview")
+            || ProcessInfo.processInfo.arguments.contains("--share-menu-preview")
         #else
         return false
         #endif
