@@ -31,6 +31,18 @@ struct SaveddSearchEngine {
         return searchURL(for: text).map { ($0, true) }
     }
 
+    /// Home is a fresh search field, including the www redirect and referral links.
+    /// Keep actual search results and other pages available for URL editing.
+    static func addressText(for url: URL) -> String {
+        guard url.scheme == "https", ["savedd.com", "www.savedd.com"].contains(url.host?.lowercased() ?? ""),
+              url.port == nil || url.port == 443, url.path.isEmpty || url.path == "/",
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              !(components.queryItems ?? []).contains(where: {
+                  $0.name == "q" && !($0.value ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+              }) else { return url.absoluteString }
+        return ""
+    }
+
     /// Home / new-tab URL.
     static var homeURL: URL {
         URL(string: baseURL)! 
