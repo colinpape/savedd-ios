@@ -20,6 +20,7 @@
 		A10000000000000000000011 /* PartnerDirectory.js in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* PartnerDirectory.js */; };
 		A10000000000000000000012 /* ThirdPartyNotices.txt in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000012 /* ThirdPartyNotices.txt */; };
 		A10000000000000000000013 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000013 /* PrivacyInfo.xcprivacy */; };
+		A10000000000000000000014 /* VoiceSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000014 /* VoiceSearch.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -37,6 +38,7 @@
 		A20000000000000000000011 /* PartnerDirectory.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = PartnerDirectory.js; sourceTree = "<group>"; };
 		A20000000000000000000012 /* ThirdPartyNotices.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = ThirdPartyNotices.txt; sourceTree = "<group>"; };
 		A20000000000000000000013 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		A20000000000000000000014 /* VoiceSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSearch.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -66,6 +68,7 @@
 				A20000000000000000000002 /* SaveddApp.swift */,
 				A20000000000000000000003 /* SearchEngine.swift */,
 				A20000000000000000000004 /* WebView.swift */,
+				A20000000000000000000014 /* VoiceSearch.swift */,
 				A20000000000000000000006 /* Models.swift */,
 				A20000000000000000000007 /* OnboardingStore.swift */,
 				A20000000000000000000008 /* OnboardingView.swift */,
@@ -161,6 +164,7 @@
 				A10000000000000000000002 /* SaveddApp.swift in Sources */,
 				A10000000000000000000003 /* SearchEngine.swift in Sources */,
 				A10000000000000000000004 /* WebView.swift in Sources */,
+				A10000000000000000000014 /* VoiceSearch.swift in Sources */,
 				A10000000000000000000006 /* Models.swift in Sources */,
 				A10000000000000000000007 /* OnboardingStore.swift in Sources */,
 				A10000000000000000000008 /* OnboardingView.swift in Sources */,
@@ -184,6 +188,8 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Savedd uses your microphone when you tap Voice search to dictate a search or website address.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Savedd uses Apple speech recognition to turn your voice into text. Audio may be sent to Apple when on-device recognition is unavailable.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -215,6 +221,8 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Savedd uses your microphone when you tap Voice search to dictate a search or website address.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Savedd uses Apple speech recognition to turn your voice into text. Audio may be sent to Apple when on-device recognition is unavailable.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
