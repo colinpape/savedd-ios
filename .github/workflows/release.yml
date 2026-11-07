@@ -17,3 +17,8 @@ jobs:
           xcodebuild -project Savedd.xcodeproj -scheme Savedd -configuration Release -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/Savedd.xcarchive" CODE_SIGNING_ALLOWED=NO archive
       - name: Verify privacy manifest is included
         run: plutil -lint "$RUNNER_TEMP/Savedd.xcarchive/Products/Applications/Savedd.app/PrivacyInfo.xcprivacy"
+      - name: Verify voice permission descriptions are included
+        run: |
+          APP_PLIST="$RUNNER_TEMP/Savedd.xcarchive/Products/Applications/Savedd.app/Info.plist"
+          test -n "$(/usr/libexec/PlistBuddy -c 'Print :NSMicrophoneUsageDescription' "$APP_PLIST")"
+          test -n "$(/usr/libexec/PlistBuddy -c 'Print :NSSpeechRecognitionUsageDescription' "$APP_PLIST")"
