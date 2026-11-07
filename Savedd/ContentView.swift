@@ -17,6 +17,8 @@ struct ContentView: View {
     @State private var showBookmarks = false
     @State private var showShare = false
     @State private var showSettings = false
+    @State private var showVoiceSearch = false
+    @State private var focusAfterDictation = false
     @State private var shareItems: [Any] = []
     @State private var isEditingAddress = false
     @FocusState private var addressFieldFocused: Bool
@@ -111,6 +113,18 @@ struct ContentView: View {
                         }
                     }
                     
+                    Button {
+                        addressFieldFocused = false
+                        showVoiceSearch = true
+                    } label: {
+                        Image(systemName: "mic.fill")
+                            .font(.system(size: 17))
+                            .foregroundStyle(SaveddBrand.gold)
+                            .frame(minWidth: 44, minHeight: 44)
+                    }
+                    .accessibilityLabel("Voice search")
+                    .accessibilityHint("Dictate a search or website address")
+
                     Button(action: {
                         if isEditingAddress {
                             searchText = ""
@@ -190,6 +204,19 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showShare) {
             ShareSheet(activityItems: shareItems)
+        }
+        .sheet(isPresented: $showVoiceSearch, onDismiss: {
+            if focusAfterDictation {
+                addressFieldFocused = true
+                focusAfterDictation = false
+            }
+        }) {
+            VoiceSearchView(language: onboarding.preferences.language) { text in
+                searchText = text
+                isEditingAddress = true
+                focusAfterDictation = true
+                // Leave submission to the user after they review the recognized text.
+            }
         }
         .sheet(isPresented: $showSettings) {
             SaveddSettingsView()
