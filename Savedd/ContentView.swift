@@ -120,7 +120,7 @@ struct ContentView: View {
                     .contentShape(Rectangle())
                     .onTapGesture {
                         if !isEditingAddress {
-                            searchText = tabs[activeTabIndex].url.absoluteString
+                            searchText = SaveddSearchEngine.addressText(for: tabs[activeTabIndex].url)
                             isEditingAddress = true
                             DispatchQueue.main.async {
                                 addressFieldFocused = true
@@ -293,7 +293,7 @@ struct ContentView: View {
         }
         .onChange(of: tabs[activeTabIndex].url) {
             if !isEditingAddress {
-                searchText = tabs[activeTabIndex].url.absoluteString
+                searchText = SaveddSearchEngine.addressText(for: tabs[activeTabIndex].url)
             }
         }
     }
