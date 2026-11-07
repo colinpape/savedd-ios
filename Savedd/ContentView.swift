@@ -3,6 +3,8 @@ import WebKit
 
 struct ContentView: View {
     @EnvironmentObject private var onboarding: OnboardingStore
+    @StateObject private var addressHistory = AddressHistoryStore()
+    @State private var confirmClearHistory = false
     @StateObject private var bookmarkStore = BookmarkStore()
     @State private var tabs: [BrowserTab]
     @State private var activeTabIndex = 0
@@ -25,6 +27,11 @@ struct ContentView: View {
 
     init(initialURL: URL = SaveddSearchEngine.homeURL) {
         #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--address-editor-preview") {
+            _tabs = State(initialValue: [Self.previewTabs()[0]])
+            _addressHistory = StateObject(wrappedValue: AddressHistoryStore(defaults: UserDefaults(suiteName: "savedd.address-preview")!))
+            return
+        }
         if ProcessInfo.processInfo.arguments.contains("--visual-tabs-preview") {
             _tabs = State(initialValue: Self.previewTabs())
             return
@@ -39,7 +46,7 @@ struct ContentView: View {
     }
     
     var body: some View {
-        VStack(spacing: 0) {
+        GeometryReader { geometry in
             ZStack {
                 ForEach(tabs) { tab in
                     WebView(
@@ -68,10 +75,16 @@ struct ContentView: View {
                     .zIndex(tab.id == tabs[activeTabIndex].id ? 1 : 0)
                 }
             }
-            .edgesIgnoringSafeArea(.top)
-
-            // Safari-style bottom bar
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .ignoresSafeArea(.container, edges: .top)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 8) {
+                if isEditingAddress {
+                    recentHistory
+                        .frame(height: max(0, min(200, geometry.size.height - 180)))
+                        .clipped()
+                }
+                // Rounded address bar stays in the keyboard-aware safe area.
                 // Rounded address bar
                 HStack(spacing: 10) {
                     Button(action: { showSettings = true }) {
@@ -90,6 +103,8 @@ struct ContentView: View {
                                 .autocapitalization(.none)
                                 .disableAutocorrection(true)
                                 .font(.system(size: 16))
+                                .submitLabel(.go)
+                                .accessibilityIdentifier("addressField")
                                 .onSubmit {
                                     performSearch()
                                     isEditingAddress = false
@@ -149,6 +164,21 @@ struct ContentView: View {
                 )
                 .padding(.horizontal, 12)
                 
+                if isEditingAddress {
+                    HStack {
+                        Button("Cancel") {
+                            isEditingAddress = false
+                            addressFieldFocused = false
+                        }
+                        Spacer()
+                        Button("Go") { performSearch() }
+                            .fontWeight(.semibold)
+                            .disabled(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                    .padding(.horizontal, 24)
+                    .frame(minHeight: 36)
+                    .tint(SaveddBrand.gold)
+                } else {
                 // Action buttons
                 HStack(spacing: 0) {
                     ToolbarButton(icon: "chevron.left", action: goBack, disabled: !canGoBack)
@@ -187,11 +217,19 @@ struct ContentView: View {
                     .accessibilityLabel("Tabs, \(tabs.count) open")
                 }
                 .padding(.horizontal, 4)
+                }
             }
             .padding(.vertical, 8)
-            .background(Color(UIColor.systemBackground))
+            .background {
+                Color(UIColor.systemBackground).ignoresSafeArea(.container, edges: .bottom)
+            }
+            }
         }
-        .edgesIgnoringSafeArea(.bottom)
+        .confirmationDialog("Clear recent searches and addresses?", isPresented: $confirmClearHistory, titleVisibility: .visible) {
+            Button("Clear history", role: .destructive) { addressHistory.clear() }
+        } message: {
+            Text("This removes the address-bar history saved on this device. Bookmarks and website logins are kept.")
+        }
         .sheet(isPresented: $showTabs) {
             TabSwitcherView(tabs: $tabs, activeIndex: $activeTabIndex, snapshots: snapshots, onNewTab: newTab)
                 .presentationDetents([.large])
@@ -223,6 +261,18 @@ struct ContentView: View {
         }
         .task {
             #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--address-editor-preview") {
+                addressHistory.clear()
+                for text in ["https://example.com", "gardening ideas", "local coffee shops"] {
+                    if let destination = SaveddSearchEngine.destination(for: text) {
+                        addressHistory.record(text, url: destination.url, isSearch: destination.isSearch, privacyMode: false)
+                    }
+                }
+                try? await Task.sleep(for: .seconds(2))
+                searchText = ""
+                isEditingAddress = true
+                addressFieldFocused = true
+            }
             if ProcessInfo.processInfo.arguments.contains("--visual-tabs-preview") {
                 // Visit real local WebKit pages so CI captures actual snapshots, without network.
                 for index in tabs.indices {
@@ -248,6 +298,73 @@ struct ContentView: View {
         }
     }
     
+    private var recentHistory: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Recent searches & addresses").font(.subheadline.weight(.semibold))
+                Spacer()
+                Button("Clear all") { confirmClearHistory = true }
+                    .disabled(addressHistory.entries.isEmpty)
+                    .font(.subheadline)
+                    .frame(minHeight: 44)
+                    .accessibilityLabel("Clear all address-bar history")
+            }
+            .padding(.horizontal, 16)
+            if onboarding.preferences.privacyMode {
+                Text("History is paused in Privacy Mode.")
+                    .font(.callout).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                let query = searchText == tabs[activeTabIndex].url.absoluteString ? "" : searchText
+                let matches = addressHistory.matching(query)
+                if matches.isEmpty {
+                    Text(addressHistory.entries.isEmpty ? "Your searches and addresses will appear here." : "No matching history")
+                        .font(.callout).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(matches) { entry in
+                                HStack(spacing: 8) {
+                                    Button {
+                                        searchText = entry.text
+                                        performSearch()
+                                    } label: {
+                                        HStack(spacing: 12) {
+                                            Image(systemName: entry.isSearch ? "magnifyingglass" : "globe")
+                                                .foregroundStyle(SaveddBrand.gold)
+                                            Text(entry.text).lineLimit(1)
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                        }
+                                        .frame(minHeight: 44)
+                                        .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("Open recent: \(entry.text)")
+                                    Button {
+                                        addressHistory.remove(entry.id)
+                                    } label: {
+                                        Image(systemName: "xmark")
+                                            .font(.caption.weight(.semibold))
+                                            .frame(width: 44, height: 44)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("Delete history: \(entry.text)")
+                                }
+                                .padding(.leading, 16)
+                                .padding(.trailing, 4)
+                            }
+                        }
+                    }
+                    .scrollDismissesKeyboard(.never)
+                }
+            }
+        }
+        .tint(SaveddBrand.gold)
+        .background(Color(UIColor.secondarySystemBackground))
+        .accessibilityIdentifier("addressHistory")
+    }
+
     #if DEBUG
     private static func previewTabs() -> [BrowserTab] {
         let pages = [
@@ -292,27 +409,12 @@ struct ContentView: View {
     }
 
     private func performSearch() {
-        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        
-        if let url = parseURL(from: trimmed) {
-            loadURL(url)
-        } else if let searchURL = SaveddSearchEngine.searchURL(for: trimmed) {
-            loadURL(searchURL)
-        }
+        guard let destination = SaveddSearchEngine.destination(for: searchText) else { return }
+        addressHistory.record(searchText, url: destination.url, isSearch: destination.isSearch,
+                              privacyMode: onboarding.preferences.privacyMode)
+        loadURL(destination.url)
     }
-    
-    private func parseURL(from text: String) -> URL? {
-        if text.contains(".") && !text.contains(" ") {
-            var urlString = text
-            if !urlString.hasPrefix("http://") && !urlString.hasPrefix("https://") {
-                urlString = "https://" + urlString
-            }
-            return URL(string: urlString)
-        }
-        return nil
-    }
-    
+
     private func loadURL(_ url: URL) {
         snapshots[tabs[activeTabIndex].id] = nil
         tabs[activeTabIndex].url = url

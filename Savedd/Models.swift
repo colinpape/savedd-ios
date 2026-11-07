@@ -53,3 +53,59 @@ class BookmarkStore: ObservableObject {
         bookmarks = decoded
     }
 }
+
+struct AddressHistoryEntry: Identifiable, Codable {
+    var id = UUID()
+    let text: String
+    let url: URL
+    let isSearch: Bool
+    var date = Date()
+}
+
+/// Only explicit address-bar submissions are saved, not every website visited.
+final class AddressHistoryStore: ObservableObject {
+    @Published private(set) var entries: [AddressHistoryEntry] = []
+    private let defaults: UserDefaults
+    private let key = "savedd.address-history.v1"
+    static let limit = 100
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        if let data = defaults.data(forKey: key),
+           let decoded = try? JSONDecoder().decode([AddressHistoryEntry].self, from: data) {
+            entries = Array(decoded.prefix(Self.limit))
+        }
+    }
+
+    func record(_ text: String, url: URL, isSearch: Bool, privacyMode: Bool) {
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !privacyMode, !text.isEmpty,
+              ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+              url.host != nil, url.user == nil, url.password == nil else { return }
+        entries.removeAll { $0.text.caseInsensitiveCompare(text) == .orderedSame }
+        entries.insert(AddressHistoryEntry(text: text, url: url, isSearch: isSearch), at: 0)
+        entries = Array(entries.prefix(Self.limit))
+        save()
+    }
+
+    func matching(_ query: String) -> [AddressHistoryEntry] {
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return query.isEmpty ? entries : entries.filter {
+            $0.text.localizedCaseInsensitiveContains(query) || $0.url.absoluteString.localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    func remove(_ id: UUID) {
+        entries.removeAll { $0.id == id }
+        save()
+    }
+
+    func clear() {
+        entries = []
+        defaults.removeObject(forKey: key)
+    }
+
+    private func save() {
+        if let data = try? JSONEncoder().encode(entries) { defaults.set(data, forKey: key) }
+    }
+}

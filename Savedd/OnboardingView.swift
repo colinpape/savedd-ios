@@ -23,6 +23,7 @@ struct SaveddRootView: View {
     private var visualTabsPreview: Bool {
         #if DEBUG
         return ProcessInfo.processInfo.arguments.contains("--visual-tabs-preview")
+            || ProcessInfo.processInfo.arguments.contains("--address-editor-preview")
         #else
         return false
         #endif

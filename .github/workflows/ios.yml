@@ -18,6 +18,10 @@ jobs:
         run: npm ci && npm test && npm run build
       - name: Verify bundled directory reader is current
         run: git diff --exit-code -- Savedd/PartnerDirectory.js
+      - name: Test address history and search routing
+        run: |
+          swiftc -parse-as-library Savedd/Models.swift Savedd/SearchEngine.swift Tests/AddressHistoryTests.swift -o "$RUNNER_TEMP/address-history-tests"
+          "$RUNNER_TEMP/address-history-tests"
       - name: Build for iOS Simulator without signing
         run: xcodebuild -project Savedd.xcodeproj -scheme Savedd -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build
       - name: Capture first-run screens
@@ -28,6 +32,7 @@ jobs:
           open -a Simulator --args -CurrentDeviceUDID "$DEVICE_ID"
           xcrun simctl bootstatus "$DEVICE_ID" -b
           sleep 15
+          defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
           xcrun simctl install "$DEVICE_ID" DerivedData/Build/Products/Debug-iphonesimulator/Savedd.app
           mkdir -p screenshots
           collect_diagnostics() {
@@ -56,6 +61,10 @@ jobs:
           xcrun simctl io "$DEVICE_ID" screenshot screenshots/browser-voice-button.png
           sleep 37
           xcrun simctl io "$DEVICE_ID" screenshot screenshots/visual-tabs.png
+          xcrun simctl terminate "$DEVICE_ID" com.savedd.browser
+          xcrun simctl launch "$DEVICE_ID" com.savedd.browser --address-editor-preview
+          sleep 15
+          xcrun simctl io "$DEVICE_ID" screenshot screenshots/keyboard-address-history.png
           xcrun simctl terminate "$DEVICE_ID" com.savedd.browser
       - uses: actions/upload-artifact@v4
         if: always()
