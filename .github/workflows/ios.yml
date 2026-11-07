@@ -1,0 +1,58 @@
+name: iOS build
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify directory trust rules and website preference handoff
+        working-directory: Tools/partner-directory
+        run: npm ci && npm test && npm run build
+      - name: Verify bundled directory reader is current
+        run: git diff --exit-code -- Savedd/PartnerDirectory.js
+      - name: Build for iOS Simulator without signing
+        run: xcodebuild -project Savedd.xcodeproj -scheme Savedd -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build
+      - name: Capture first-run screens
+        timeout-minutes: 8
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices available --json | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for group in d["devices"].values() for x in group if "iPhone" in x["name"]))')
+          xcrun simctl boot "$DEVICE_ID"
+          open -a Simulator --args -CurrentDeviceUDID "$DEVICE_ID"
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          sleep 15
+          xcrun simctl install "$DEVICE_ID" DerivedData/Build/Products/Debug-iphonesimulator/Savedd.app
+          mkdir -p screenshots
+          collect_diagnostics() {
+            xcrun simctl spawn "$DEVICE_ID" log show --last 4m --style compact --predicate 'process == "Savedd"' > screenshots/app.log 2>&1 || true
+            find "$HOME/Library/Logs/DiagnosticReports" -type f -name 'Savedd*' -exec cp {} screenshots/ \; || true
+          }
+          trap collect_diagnostics EXIT
+          for STEP in 0 1 2 3; do
+            CAPTURED=false
+            for ATTEMPT in 1 2; do
+              if xcrun simctl launch "$DEVICE_ID" com.savedd.browser --onboarding-preview-step "$STEP"; then
+                sleep 20
+                xcrun simctl io "$DEVICE_ID" screenshot "screenshots/step-$STEP.png"
+                if xcrun simctl terminate "$DEVICE_ID" com.savedd.browser; then
+                  CAPTURED=true
+                  break
+                fi
+              fi
+              collect_diagnostics
+              sleep 10
+            done
+            test "$CAPTURED" = true
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: onboarding-screens
+          path: screenshots/

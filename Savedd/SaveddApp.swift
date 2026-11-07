@@ -4,8 +4,7 @@ import SwiftUI
 struct SaveddApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .preferredColorScheme(.dark)
+            SaveddRootView()
         }
     }
 }
