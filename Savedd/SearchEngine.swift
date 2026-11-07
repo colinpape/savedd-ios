@@ -9,8 +9,26 @@ struct SaveddSearchEngine {
 
     /// Builds a search URL for the given query.
     static func searchURL(for query: String) -> URL? {
-        let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
-        return URL(string: searchTemplate + encoded)
+        guard var components = URLComponents(string: baseURL) else { return nil }
+        components.queryItems = [URLQueryItem(name: "q", value: query)]
+        // Website URLSearchParams treats a literal + as a space.
+        components.percentEncodedQuery = components.percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B")
+        return components.url
+    }
+
+    /// Resolve explicit web addresses; everything else remains a literal search.
+    static func destination(for input: String) -> (url: URL, isSearch: Bool)? {
+        let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return nil }
+        let lower = text.lowercased()
+        if !text.contains(where: { $0.isWhitespace }),
+           lower.hasPrefix("https://") || lower.hasPrefix("http://") || (!text.contains("://") && text.contains(".")) {
+            let candidate = lower.hasPrefix("https://") || lower.hasPrefix("http://") ? text : "https://" + text
+            if let url = URL(string: candidate), let host = url.host, !host.isEmpty {
+                return (url, false)
+            }
+        }
+        return searchURL(for: text).map { ($0, true) }
     }
 
     /// Home / new-tab URL.
