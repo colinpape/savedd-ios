@@ -80,7 +80,7 @@ enum ProverbNotificationPlan {
         var requests: [UNNotificationRequest] = []
         for chapter in library.chapters {
             let content = UNMutableNotificationContent()
-            content.title = "Today’s wisdom · Proverbs \(chapter.day)"
+            content.title = "Savedd Daily Proverb"
             content.body = "\(chapter.highlight) — \(chapter.reference) (WEB)"
             content.sound = .default
             content.userInfo = ["proverbDay": chapter.day]
