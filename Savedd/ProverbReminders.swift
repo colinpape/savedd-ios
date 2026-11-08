@@ -53,7 +53,13 @@ final class ProverbReminders: ObservableObject {
         else { time = ProverbReminderTime() }
     }
 
-    var canNotify: Bool { permission == .authorized || permission == .provisional || permission == .ephemeral }
+    var canNotify: Bool {
+        #if os(iOS)
+        return permission == .authorized || permission == .provisional || permission == .ephemeral
+        #else
+        return permission == .authorized || permission == .provisional
+        #endif
+    }
     var timeDescription: String { selectedDate.formatted(date: .omitted, time: .shortened) }
     var selectedDate: Date {
         Calendar.current.date(bySettingHour: time.hour, minute: time.minute, second: 0, of: Date()) ?? Date()
