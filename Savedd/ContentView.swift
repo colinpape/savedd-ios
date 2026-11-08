@@ -1,5 +1,6 @@
 import SwiftUI
 import WebKit
+import LinkPresentation
 
 struct ContentView: View {
     @EnvironmentObject private var onboarding: OnboardingStore
@@ -270,7 +271,7 @@ struct ContentView: View {
             }
         }
         .sheet(item: $sharePage) { page in
-            ShareSheet(activityItems: [page.url], bookmarkTitle: page.title, onAddBookmark: bookmarkStore.add)
+            ShareSheet(page: page, onAddBookmark: bookmarkStore.add)
         }
         .sheet(isPresented: $showVoiceSearch, onDismiss: {
             if focusAfterDictation {
@@ -774,14 +775,14 @@ final class AddBookmarkActivity: UIActivity {
 
     override func canPerform(withActivityItems activityItems: [Any]) -> Bool {
         activityItems.contains { item in
-            guard let url = item as? URL else { return false }
+            guard let url = (item as? URL) ?? (item as? BrowserPageShareItem)?.page.url else { return false }
             return ["https", "http"].contains(url.scheme?.lowercased() ?? "")
                 && url.host != nil && url.user == nil && url.password == nil
         }
     }
 
     override func prepare(withActivityItems activityItems: [Any]) {
-        url = activityItems.compactMap { $0 as? URL }.first
+        url = activityItems.compactMap { ($0 as? URL) ?? ($0 as? BrowserPageShareItem)?.page.url }.first
     }
 
     override var activityViewController: UIViewController? {
@@ -804,14 +805,30 @@ struct SharedBrowserPage: Identifiable {
     let title: String
 }
 
+/// Supply preview metadata locally rather than waiting for a website preview fetch.
+final class BrowserPageShareItem: NSObject, UIActivityItemSource {
+    let page: SharedBrowserPage
+    init(page: SharedBrowserPage) { self.page = page; super.init() }
+
+    func activityViewControllerPlaceholderItem(_ activityViewController: UIActivityViewController) -> Any { page.url }
+    func activityViewController(_ activityViewController: UIActivityViewController,
+                                itemForActivityType activityType: UIActivity.ActivityType?) -> Any? { page.url }
+    func activityViewControllerLinkMetadata(_ activityViewController: UIActivityViewController) -> LPLinkMetadata? {
+        let metadata = LPLinkMetadata()
+        metadata.title = page.title
+        metadata.originalURL = page.url
+        metadata.url = page.url
+        return metadata
+    }
+}
+
 struct ShareSheet: UIViewControllerRepresentable {
-    var activityItems: [Any]
-    var bookmarkTitle: String
+    var page: SharedBrowserPage
     var onAddBookmark: (Bookmark) -> Void
 
     func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: activityItems,
-                                 applicationActivities: [AddBookmarkActivity(title: bookmarkTitle, onSave: onAddBookmark)])
+        UIActivityViewController(activityItems: [BrowserPageShareItem(page: page)],
+                                 applicationActivities: [AddBookmarkActivity(title: page.title, onSave: onAddBookmark)])
     }
 
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
