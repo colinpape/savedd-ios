@@ -4,7 +4,6 @@ struct ProverbReminderSetup: View {
     @EnvironmentObject private var reminders: ProverbReminders
     @Environment(\.openURL) private var openURL
     var showActions = true
-    var onContinue: (() -> Void)?
     private var chapter: ProverbChapter? {
         ProverbLibrary.bundled?.chapters.first { $0.day == ProverbLibrary.day() }
     }
@@ -51,30 +50,39 @@ struct ProverbReminderSetup: View {
             if let error = reminders.error {
                 Text(error).font(.subheadline).foregroundStyle(SaveddBrand.muted)
             }
-            if showActions {
-                if reminders.enabled {
-                    Button("Turn off daily reminders") { reminders.disable() }
-                        .frame(minHeight: 44)
-                } else {
-                    Button {
-                        Task { await reminders.enable() }
-                    } label: {
-                        HStack {
-                            if reminders.busy { ProgressView() }
-                            Text("Enable daily reminder")
-                        }
-                    }
-                    .buttonStyle(GoldButtonStyle())
-                    .disabled(reminders.busy || reminders.permission == .denied)
-                }
-                if let onContinue {
-                    Button(reminders.enabled && reminders.canNotify ? "Continue" : "Maybe later", action: onContinue)
-                        .frame(maxWidth: .infinity, minHeight: 48)
-                        .disabled(reminders.busy)
-                }
-            }
+            if showActions { ProverbReminderActions() }
         }
         .task { await reminders.refresh() }
+    }
+}
+
+struct ProverbReminderActions: View {
+    @EnvironmentObject private var reminders: ProverbReminders
+    var onContinue: (() -> Void)?
+
+    var body: some View {
+        VStack(spacing: 6) {
+            if reminders.enabled {
+                Button("Turn off daily reminders") { reminders.disable() }
+                    .frame(minHeight: 44)
+            } else {
+                Button {
+                    Task { await reminders.enable() }
+                } label: {
+                    HStack {
+                        if reminders.busy { ProgressView() }
+                        Text("Enable daily reminder")
+                    }
+                }
+                .buttonStyle(GoldButtonStyle())
+                .disabled(reminders.busy || reminders.permission == .denied)
+            }
+            if let onContinue {
+                Button(reminders.enabled && reminders.canNotify ? "Continue" : "Maybe later", action: onContinue)
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .disabled(reminders.busy)
+            }
+        }
     }
 }
 

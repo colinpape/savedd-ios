@@ -123,7 +123,7 @@ struct OnboardingView: View {
                             switch step {
                             case 1: PartnerPicker(directory: directory)
                             case 2: SaveddPreferencesForm()
-                            case 3: ProverbReminderSetup(onContinue: { move(to: 4) })
+                            case 3: ProverbReminderSetup(showActions: false)
                             default: account
                             }
                         }
@@ -253,7 +253,9 @@ struct OnboardingView: View {
                 Button("Continue without an account") { onFinish(nil) }
                     .font(.subheadline.weight(.medium))
                     .frame(maxWidth: .infinity, minHeight: 48)
-            } else if step != 3 {
+            } else if step == 3 {
+                ProverbReminderActions(onContinue: { move(to: 4) })
+            } else {
                 Button {
                     if step == 1 { resolveReferral() }
                     move(to: step + 1)
