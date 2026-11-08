@@ -22,3 +22,12 @@ jobs:
           APP_PLIST="$RUNNER_TEMP/Savedd.xcarchive/Products/Applications/Savedd.app/Info.plist"
           test -n "$(/usr/libexec/PlistBuddy -c 'Print :NSMicrophoneUsageDescription' "$APP_PLIST")"
           test -n "$(/usr/libexec/PlistBuddy -c 'Print :NSSpeechRecognitionUsageDescription' "$APP_PLIST")"
+      - name: Verify offline Proverbs readings are bundled
+        run: |
+          APP="$RUNNER_TEMP/Savedd.xcarchive/Products/Applications/Savedd.app"
+          python3 - "$APP/Proverbs.json" <<'PY'
+          import json,sys
+          d=json.load(open(sys.argv[1]))
+          assert len(d['chapters']) == 31
+          assert sum(len(c['verses']) for c in d['chapters']) == 915
+          PY

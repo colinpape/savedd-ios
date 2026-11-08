@@ -21,6 +21,10 @@
 		A10000000000000000000012 /* ThirdPartyNotices.txt in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000012 /* ThirdPartyNotices.txt */; };
 		A10000000000000000000013 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000013 /* PrivacyInfo.xcprivacy */; };
 		A10000000000000000000014 /* VoiceSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000014 /* VoiceSearch.swift */; };
+		A10000000000000000000015 /* DailyProverb.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000015 /* DailyProverb.swift */; };
+		A10000000000000000000016 /* ProverbReminders.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000016 /* ProverbReminders.swift */; };
+		A10000000000000000000017 /* DailyProverbView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000017 /* DailyProverbView.swift */; };
+		A10000000000000000000018 /* Proverbs.json in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000018 /* Proverbs.json */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -39,6 +43,10 @@
 		A20000000000000000000012 /* ThirdPartyNotices.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = ThirdPartyNotices.txt; sourceTree = "<group>"; };
 		A20000000000000000000013 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		A20000000000000000000014 /* VoiceSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSearch.swift; sourceTree = "<group>"; };
+		A20000000000000000000015 /* DailyProverb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyProverb.swift; sourceTree = "<group>"; };
+		A20000000000000000000016 /* ProverbReminders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProverbReminders.swift; sourceTree = "<group>"; };
+		A20000000000000000000017 /* DailyProverbView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyProverbView.swift; sourceTree = "<group>"; };
+		A20000000000000000000018 /* Proverbs.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Proverbs.json; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -68,6 +76,10 @@
 				A20000000000000000000002 /* SaveddApp.swift */,
 				A20000000000000000000003 /* SearchEngine.swift */,
 				A20000000000000000000004 /* WebView.swift */,
+				A20000000000000000000015 /* DailyProverb.swift */,
+				A20000000000000000000016 /* ProverbReminders.swift */,
+				A20000000000000000000017 /* DailyProverbView.swift */,
+				A20000000000000000000018 /* Proverbs.json */,
 				A20000000000000000000014 /* VoiceSearch.swift */,
 				A20000000000000000000006 /* Models.swift */,
 				A20000000000000000000007 /* OnboardingStore.swift */,
@@ -149,6 +161,7 @@
 				A10000000000000000000005 /* Assets.xcassets in Resources */,
 				A10000000000000000000011 /* PartnerDirectory.js in Resources */,
 				A10000000000000000000012 /* ThirdPartyNotices.txt in Resources */,
+				A10000000000000000000018 /* Proverbs.json in Resources */,
 				A10000000000000000000013 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -164,6 +177,9 @@
 				A10000000000000000000002 /* SaveddApp.swift in Sources */,
 				A10000000000000000000003 /* SearchEngine.swift in Sources */,
 				A10000000000000000000004 /* WebView.swift in Sources */,
+				A10000000000000000000015 /* DailyProverb.swift in Sources */,
+				A10000000000000000000016 /* ProverbReminders.swift in Sources */,
+				A10000000000000000000017 /* DailyProverbView.swift in Sources */,
 				A10000000000000000000014 /* VoiceSearch.swift in Sources */,
 				A10000000000000000000006 /* Models.swift in Sources */,
 				A10000000000000000000007 /* OnboardingStore.swift in Sources */,
