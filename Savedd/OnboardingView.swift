@@ -127,6 +127,7 @@ struct OnboardingView: View {
         }
         .foregroundStyle(SaveddBrand.foreground)
         .tint(SaveddBrand.gold)
+        .task { directory.loadIfNeeded() }
         .onDisappear { directory.stop() }
     }
 
@@ -364,7 +365,6 @@ private struct PartnerPicker: View {
                     .font(.caption).foregroundStyle(SaveddBrand.muted)
             }
         }
-        .task { if directory.partners.isEmpty { directory.load() } }
     }
 }
 
