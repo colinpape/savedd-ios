@@ -27,6 +27,7 @@ final class PartnerDirectory: NSObject, ObservableObject, WKNavigationDelegate {
     private var webView: WKWebView?
     private var readerTask: Task<Void, Never>?
     private var timeout: Task<Void, Never>?
+    private var hasLoaded = false
     private static let owner = "c45041618951bb6012ac23f5cdf3d740465f2d640be841fd9bb1d0733370cd3c"
     private static let relays = [
         "wss://savedd-sip-relay.savedd-sip-relay.workers.dev/", "wss://relay.ditto.pub/",
@@ -36,6 +37,12 @@ final class PartnerDirectory: NSObject, ObservableObject, WKNavigationDelegate {
         "wss://jskitty.cat/nostr", "wss://search.nos.today/", "wss://relay.nostr.band/",
         "wss://relay.noswhere.com/", "wss://relay.pocketnostr.com/", "wss://relay.damus.io/"
     ]
+
+    /// Keep verified results (including an empty directory) for this onboarding session.
+    func loadIfNeeded() {
+        guard !hasLoaded else { return }
+        load()
+    }
 
     func load() {
         guard !isLoading else { return }
@@ -77,6 +84,7 @@ final class PartnerDirectory: NSObject, ObservableObject, WKNavigationDelegate {
                 let data = try JSONSerialization.data(withJSONObject: result)
                 let records = try JSONDecoder().decode([SaveddPartner].self, from: data)
                 partners = records.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+                hasLoaded = true
                 isLoading = false
                 stop()
             } catch {
