@@ -66,6 +66,7 @@ struct OnboardingView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AccessibilityFocusState private var headingFocused: Bool
     @StateObject private var directory = PartnerDirectory()
+    @EnvironmentObject private var reminders: ProverbReminders
     @State private var step = 0
     let onFinish: (URL?) -> Void
 
@@ -209,6 +210,7 @@ struct OnboardingView: View {
                 summary("Appearance", value: store.preferences.appearance.title)
                 summary("Search language", value: SaveddPreferencesForm.languageName(store.preferences.language))
                 summary("Privacy Mode", value: store.preferences.privacyMode ? "On" : "Off")
+                summary("Daily Proverb", value: reminders.enabled && reminders.canNotify ? "Daily at \(reminders.timeDescription)" : "Off")
                 if let partner = store.preferences.partner {
                     summary("Introduced by", value: partner.name)
                 } else if !store.preferences.referralCode.isEmpty {

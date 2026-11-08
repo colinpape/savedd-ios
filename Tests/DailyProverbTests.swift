@@ -45,6 +45,20 @@ struct DailyProverbTests {
         let leapTrigger = leapRequest.trigger as! UNCalendarNotificationTrigger
         precondition(leapTrigger.dateComponents.month == 2 && leapTrigger.dateComponents.day == 29)
         precondition(ProverbNotificationPlan.identifiers.sorted() == requests.map(\.identifier).sorted())
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = .current
+        for month in 1...12 {
+            let anchor = gregorian.date(from: DateComponents(year: 2027, month: month, day: 1))!
+            for request in requests where !request.identifier.hasSuffix(".leap") {
+                let parts = (request.trigger as! UNCalendarNotificationTrigger).dateComponents
+                let date = gregorian.nextDate(after: anchor, matching: parts, matchingPolicy: .nextTime)!
+                precondition(gregorian.component(.day, from: date) == parts.day)
+            }
+        }
+        let afterLeapDay = ISO8601DateFormatter().date(from: "2028-03-01T12:00:00Z")!
+        let futureLeap = ProverbNotificationPlan.requests(library: library, time: morning, now: afterLeapDay)
+            .first { $0.identifier.hasSuffix(".leap") }!
+        precondition((futureLeap.trigger as! UNCalendarNotificationTrigger).dateComponents.year == 2032)
         let suite = "savedd.proverb-tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -82,6 +96,10 @@ struct DailyProverbTests {
         reminders.open(day: 99)
         precondition(reminders.presentedChapter == nil)
         reminders.disable()
+        client.onAdd = { reminders.disable() }
+        await reminders.enable()
+        precondition(!reminders.enabled && client.pending.isEmpty)
+        client.onAdd = nil
         print("Permission, persistence, time edits, revoke/restore, cancellation, failure cleanup, and chapter routing passed")
         print("Daily Proverb: 31 chapters, 915 verses, correct local-day selection and 58 valid-date calendar reminders passed")
     }
@@ -93,11 +111,13 @@ final class FakeNotifications: ProverbNotificationClient {
     var promptCount = 0
     var pending: [String: UNNotificationRequest] = [:]
     var failAdd = false
+    var onAdd: (() -> Void)?
     func authorization() async -> UNAuthorizationStatus { status }
     func requestPermission() async throws { promptCount += 1; status = .authorized }
     func add(_ request: UNNotificationRequest) async throws {
         if failAdd { throw CocoaError(.fileWriteUnknown) }
         pending[request.identifier] = request
+        onAdd?()
     }
     func removePending(_ identifiers: [String]) { identifiers.forEach { pending.removeValue(forKey: $0) } }
     func removeDelivered(_ identifiers: [String]) {}
