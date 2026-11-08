@@ -28,7 +28,7 @@ struct SystemProverbNotifications: ProverbNotificationClient {
 @MainActor
 final class ProverbReminders: ObservableObject {
     static let shared = ProverbReminders()
-    nonisolated static let prefix = "savedd.daily-proverb."
+    nonisolated static let prefix = ProverbNotificationPlan.prefix
     @Published private(set) var enabled: Bool
     @Published private(set) var time: ProverbReminderTime
     @Published private(set) var permission: UNAuthorizationStatus = .notDetermined
@@ -101,8 +101,8 @@ final class ProverbReminders: ObservableObject {
         revision += 1
         enabled = false
         defaults.set(false, forKey: Self.enabledKey)
-        client.removePending((1...31).map { Self.prefix + String($0) })
-        client.removeDelivered((1...31).map { Self.prefix + String($0) })
+        client.removePending(ProverbNotificationPlan.identifiers)
+        client.removeDelivered(ProverbNotificationPlan.identifiers)
         error = nil
     }
 
@@ -111,7 +111,7 @@ final class ProverbReminders: ObservableObject {
         if enabled && canNotify { await schedule() }
         else if enabled {
             // Preserve the user's subscription choice if iOS permission is revoked.
-            client.removePending((1...31).map { Self.prefix + String($0) })
+            client.removePending(ProverbNotificationPlan.identifiers)
         }
     }
 
@@ -125,11 +125,8 @@ final class ProverbReminders: ObservableObject {
             return
         }
         do {
-            // 31 monthly repeating requests stay below iOS's 64-request limit and
-            // continue without reopening the app. Nonexistent dates simply skip.
-            for chapter in library.chapters {
+            for request in ProverbNotificationPlan.requests(library: library, time: time) {
                 guard enabled, currentRevision == revision else { return }
-                let request = chapter.notification(at: time)
                 try await client.add(request)
                 if !enabled {
                     client.removePending([request.identifier])

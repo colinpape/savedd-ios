@@ -55,6 +55,7 @@ struct ProverbReminderTime: Codable, Equatable {
         value.day = day
         value.hour = hour
         value.minute = minute
+        value.second = 0
         return value
     }
 }
@@ -62,15 +63,55 @@ struct ProverbReminderTime: Codable, Equatable {
 #if canImport(UserNotifications)
 import UserNotifications
 
-extension ProverbChapter {
-    func notification(at time: ProverbReminderTime) -> UNNotificationRequest {
-        let content = UNMutableNotificationContent()
-        content.title = "Today’s wisdom · Proverbs \(day)"
-        content.body = "\(highlight) — \(reference) (WEB)"
-        content.sound = .default
-        content.userInfo = ["proverbDay": day]
-        return UNNotificationRequest(identifier: "savedd.daily-proverb." + String(day), content: content,
-            trigger: UNCalendarNotificationTrigger(dateMatching: time.components(day: day), repeats: true))
+enum ProverbNotificationPlan {
+    static let prefix = "savedd.daily-proverb."
+    static let lateMonthDays: [Int: [Int]] = [
+        29: [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        30: [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        31: [1, 3, 5, 7, 8, 10, 12]
+    ]
+    static var identifiers: [String] {
+        (1...28).map { prefix + String($0) } +
+        [29, 30, 31].flatMap { day in lateMonthDays[day]!.map { prefix + "\(day).month.\($0)" } } +
+        [prefix + "29.leap"]
+    }
+
+    static func requests(library: ProverbLibrary, time: ProverbReminderTime, now: Date = Date()) -> [UNNotificationRequest] {
+        var requests: [UNNotificationRequest] = []
+        for chapter in library.chapters {
+            let content = UNMutableNotificationContent()
+            content.title = "Today’s wisdom · Proverbs \(chapter.day)"
+            content.body = "\(chapter.highlight) — \(chapter.reference) (WEB)"
+            content.sound = .default
+            content.userInfo = ["proverbDay": chapter.day]
+            func append(_ components: DateComponents, suffix: String = "", repeats: Bool = true) {
+                requests.append(UNNotificationRequest(identifier: prefix + String(chapter.day) + suffix, content: content,
+                    trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: repeats)))
+            }
+            if chapter.day <= 28 {
+                append(time.components(day: chapter.day))
+            } else {
+                // UNCalendarNotificationTrigger uses nextTime matching: a bare
+                // day 31 can roll to the 1st! Only schedule dates valid in each month.
+                for month in lateMonthDays[chapter.day] ?? [] {
+                    var parts = time.components(day: chapter.day)
+                    parts.month = month
+                    append(parts, suffix: ".month.\(month)")
+                }
+                if chapter.day == 29 {
+                    var parts = time.components(day: 29)
+                    parts.month = 2
+                    var calendar = Calendar(identifier: .gregorian)
+                    calendar.timeZone = .current
+                    if let leapDay = calendar.nextDate(after: now, matching: parts, matchingPolicy: .strict) {
+                        parts.year = calendar.component(.year, from: leapDay)
+                        append(parts, suffix: ".leap", repeats: false)
+                    }
+                }
+            }
+        }
+        // 58 requests, below iOS's limit of 64. Refresh the leap-day request on app activation.
+        return requests
     }
 }
 #endif

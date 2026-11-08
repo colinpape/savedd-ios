@@ -10,23 +10,28 @@ struct DailyProverbTests {
         precondition(library.chapters.count == 31)
         precondition(library.chapters.reduce(0) { $0 + $1.verses.count } == 915)
         let morning = ProverbReminderTime(hour: 8, minute: 15)
-        let requests = library.chapters.map { $0.notification(at: morning) }
-        precondition(Set(requests.map(\.identifier)).count == 31)
+        let requests = ProverbNotificationPlan.requests(library: library, time: morning)
+        precondition(Set(requests.map(\.identifier)).count == 58)
         precondition(requests.count < 64)
-        for (chapter, request) in zip(library.chapters, requests) {
+        for request in requests {
+            let day = request.content.userInfo["proverbDay"] as! Int
+            let chapter = library.chapters[day - 1]
             precondition(request.content.body.contains(chapter.highlight))
             precondition(request.content.body.contains(chapter.reference))
             precondition(request.content.userInfo["proverbDay"] as? Int == chapter.day)
             let trigger = request.trigger as! UNCalendarNotificationTrigger
-            precondition(trigger.repeats)
+            precondition(trigger.repeats == !request.identifier.hasSuffix(".leap"))
             let parts = trigger.dateComponents
             precondition(parts.day == chapter.day && parts.hour == 8 && parts.minute == 15)
-            precondition(parts.month == nil && parts.year == nil && parts.timeZone == nil)
+            precondition(parts.timeZone == nil && parts.second == 0)
+            if day <= 28 { precondition(parts.month == nil && parts.year == nil) }
+            else { precondition(parts.month != nil) }
             let next = trigger.nextTriggerDate()!
             var calendar = Calendar(identifier: .gregorian)
             calendar.timeZone = .current
             precondition(calendar.component(.day, from: next) == chapter.day, "Expected day \(chapter.day), received \(next) with \(parts)")
             precondition(calendar.component(.hour, from: next) == 8)
+            if let month = parts.month { precondition(calendar.component(.month, from: next) == month) }
         }
         // The chapter follows the phone's day, rather than UTC or a non-Gregorian calendar.
         let date = ISO8601DateFormatter().date(from: "2026-11-09T02:00:00Z")!
@@ -35,7 +40,11 @@ struct DailyProverbTests {
         precondition(!ProverbReminderTime(hour: 24, minute: 0).isValid)
         precondition(!ProverbReminderTime(hour: 8, minute: 60).isValid)
         // Replacing time retains IDs so notifications are replaced, never duplicated.
-        precondition(library.chapters.map { $0.notification(at: .init(hour: 21, minute: 30)).identifier } == requests.map(\.identifier))
+        precondition(ProverbNotificationPlan.requests(library: library, time: .init(hour: 21, minute: 30)).map(\.identifier) == requests.map(\.identifier))
+        let leapRequest = requests.first { $0.identifier.hasSuffix(".leap") }!
+        let leapTrigger = leapRequest.trigger as! UNCalendarNotificationTrigger
+        precondition(leapTrigger.dateComponents.month == 2 && leapTrigger.dateComponents.day == 29)
+        precondition(ProverbNotificationPlan.identifiers.sorted() == requests.map(\.identifier).sorted())
         let suite = "savedd.proverb-tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -44,10 +53,10 @@ struct DailyProverbTests {
         await reminders.refresh()
         precondition(client.promptCount == 0 && client.pending.isEmpty && !reminders.enabled)
         await reminders.enable()
-        precondition(client.promptCount == 1 && reminders.enabled && client.pending.count == 31)
+        precondition(client.promptCount == 1 && reminders.enabled && client.pending.count == 58)
         let evening = Calendar.current.date(bySettingHour: 21, minute: 30, second: 0, of: Date())!
         await reminders.changeTime(evening)
-        precondition(client.pending.count == 31)
+        precondition(client.pending.count == 58)
         precondition(client.pending.values.allSatisfy { ($0.trigger as? UNCalendarNotificationTrigger)?.dateComponents.hour == 21 })
         let restored = ProverbReminders(client: client, defaults: defaults, library: library)
         precondition(restored.enabled && restored.time == ProverbReminderTime(hour: 21, minute: 30))
@@ -56,7 +65,7 @@ struct DailyProverbTests {
         precondition(reminders.enabled && client.pending.isEmpty && client.promptCount == 1)
         client.status = .authorized
         await reminders.refresh()
-        precondition(client.pending.count == 31)
+        precondition(client.pending.count == 58)
         reminders.disable()
         precondition(!reminders.enabled && client.pending.isEmpty)
         client.status = .denied
@@ -74,7 +83,7 @@ struct DailyProverbTests {
         precondition(reminders.presentedChapter == nil)
         reminders.disable()
         print("Permission, persistence, time edits, revoke/restore, cancellation, failure cleanup, and chapter routing passed")
-        print("Daily Proverb: 31 chapters, 915 verses, correct local-day selection and 31 repeating calendar reminders passed")
+        print("Daily Proverb: 31 chapters, 915 verses, correct local-day selection and 58 valid-date calendar reminders passed")
     }
 }
 
