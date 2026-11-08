@@ -18,7 +18,7 @@ struct WebView: UIViewRepresentable {
     var preferences: SaveddPreferences = SaveddPreferences()
     var topContentInset: CGFloat = 0
     var isActive = true
-    var snapshotRequest = UUID()
+    @Binding var snapshotRequest: UUID
     var onPageChanged: (URL, String) -> Void = { _, _ in }
     var onSnapshot: (UIImage) -> Void = { _ in }
     var goToHistoryItem: ((HistoryItem) -> Void)? = nil
@@ -308,7 +308,7 @@ private extension WebView.Coordinator {
             let originalDocument = try await regressionJS("window.documentID", in: webView)
             _ = try await regressionJS("document.getElementById('search').requestSubmit(); 'submitted'", in: webView)
             // Force the same SwiftUI redraw that previously replayed the homepage.
-            parent.onSnapshot(UIImage(systemName: "globe")!)
+            parent.snapshotRequest = UUID()
             try await Task.sleep(for: .seconds(2))
             try requireRegression(webView.url?.query?.contains("q=coffee") == true,
                                   "Website search was sent back to the homepage")
@@ -320,7 +320,7 @@ private extension WebView.Coordinator {
             stages.append("website-search-and-redraw")
 
             _ = try await regressionJS("history.replaceState({}, '', '?q=tea'); render(); 'replaced'", in: webView)
-            parent.onSnapshot(UIImage(systemName: "magnifyingglass")!)
+            parent.snapshotRequest = UUID()
             try await Task.sleep(for: .seconds(1))
             try requireRegression(parent.url.query == "q=tea", "replaceState did not update the browser address")
             try requireRegression(webView.backForwardList.backList.count == originalBackCount + 1,
@@ -344,7 +344,7 @@ private extension WebView.Coordinator {
 
             // A title change and a redraw must leave the document intact.
             _ = try await regressionJS("document.title = 'Updated results'; 'updated'", in: webView)
-            parent.onSnapshot(UIImage(systemName: "book")!)
+            parent.snapshotRequest = UUID()
             try await Task.sleep(for: .seconds(1))
             let sameDocument = try await regressionJS("window.documentID", in: webView)
             try requireRegression(sameDocument == originalDocument, "A title/SwiftUI update reloaded the document")

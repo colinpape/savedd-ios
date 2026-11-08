@@ -93,7 +93,7 @@ struct ContentView: View {
                         preferences: onboarding.preferences,
                         topContentInset: supportsUnderScroll ? geometry.safeAreaInsets.top : 0,
                         isActive: tab.id == tabs[activeTabIndex].id,
-                        snapshotRequest: snapshotRequest,
+                        snapshotRequest: $snapshotRequest,
                         onPageChanged: { url, title in
                             guard let index = tabs.firstIndex(where: { $0.id == tab.id }) else { return }
                             if tabs[index].url != url { snapshots[tab.id] = nil }
