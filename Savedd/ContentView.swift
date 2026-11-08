@@ -711,12 +711,16 @@ struct BookmarksView: View {
                     Button {
                         onSelect(bookmark)
                     } label: {
-                        VStack(alignment: .leading) {
-                            Text(bookmark.title)
-                            Text(bookmark.url.absoluteString)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                        HStack(spacing: 12) {
+                            BookmarkFavicon(url: bookmark.url)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(bookmark.title)
+                                Text(bookmark.url.absoluteString)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
                 .onDelete(perform: store.remove)
@@ -871,5 +875,88 @@ struct ContentView_Previews: PreviewProvider {
         ContentView()
             .environmentObject(OnboardingStore())
             .environmentObject(ProverbReminders.shared)
+    }
+}
+
+
+private struct BookmarkFavicon: View {
+    let url: URL
+    @State private var icon: UIImage?
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(UIColor.secondarySystemBackground))
+            if let icon {
+                Image(uiImage: icon).resizable().scaledToFit().padding(5)
+            } else {
+                Image(systemName: "globe")
+                    .font(.system(size: 20)).foregroundStyle(.secondary)
+            }
+        }
+        .frame(width: 36, height: 36)
+        .accessibilityHidden(true)
+        .task(id: url) {
+            icon = nil
+            let result = await BookmarkFaviconCache.shared.icon(for: url)
+            guard !Task.isCancelled else { return }
+            icon = result
+        }
+    }
+}
+
+/// Share origin-level lookups across bookmarks, with no external favicon service.
+/// Link Presentation resolves the site's declared icon, including custom paths.
+@MainActor
+private final class BookmarkFaviconCache {
+    static let shared = BookmarkFaviconCache()
+    private final class Entry {
+        let image: UIImage?
+        let expires: Date
+        init(_ image: UIImage?) {
+            self.image = image
+            expires = Date().addingTimeInterval(image == nil ? 600 : 86_400)
+        }
+    }
+    private let cache = NSCache<NSString, Entry>()
+    private var pending: [URL: Task<UIImage?, Never>] = [:]
+
+    private init() { cache.countLimit = 200 }
+
+    func icon(for url: URL) async -> UIImage? {
+        guard var parts = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let scheme = parts.scheme?.lowercased(), ["https", "http"].contains(scheme),
+              parts.host != nil, parts.user == nil, parts.password == nil else { return nil }
+        parts.scheme = scheme
+        parts.host = parts.host?.lowercased()
+        parts.path = "/"
+        parts.query = nil
+        parts.fragment = nil
+        guard let origin = parts.url else { return nil }
+        let key = origin.absoluteString as NSString
+        if let entry = cache.object(forKey: key), entry.expires > Date() { return entry.image }
+        if let task = pending[origin] { return await task.value }
+        let task = Task { await Self.fetch(origin) }
+        pending[origin] = task
+        let image = await task.value
+        pending[origin] = nil
+        cache.setObject(Entry(image), forKey: key)
+        return image
+    }
+
+    private static func fetch(_ url: URL) async -> UIImage? {
+        let provider = LPMetadataProvider()
+        provider.timeout = 8
+        let metadata: LPLinkMetadata? = await withCheckedContinuation { continuation in
+            provider.startFetchingMetadata(for: url) { metadata, _ in
+                continuation.resume(returning: metadata)
+            }
+        }
+        guard let icon = metadata?.iconProvider, icon.canLoadObject(ofClass: UIImage.self) else { return nil }
+        return await withCheckedContinuation { continuation in
+            _ = icon.loadObject(ofClass: UIImage.self) { image, _ in
+                continuation.resume(returning: image as? UIImage)
+            }
+        }
     }
 }
