@@ -87,7 +87,7 @@ final class ProverbReminders: ObservableObject {
             defaults.set(true, forKey: Self.enabledKey)
             await schedule()
         } catch {
-            error = "We couldn’t enable reminders. Please try again."
+            self.error = "We couldn’t enable reminders. Please try again."
         }
     }
 
@@ -134,7 +134,7 @@ final class ProverbReminders: ObservableObject {
         } catch {
             if currentRevision == revision {
                 disable()
-                error = "We couldn’t save your reminders. Please try enabling them again."
+                self.error = "We couldn’t save your reminders. Please try enabling them again."
             }
         }
     }

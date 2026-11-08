@@ -105,7 +105,7 @@ struct OnboardingView: View {
                 .foregroundStyle(SaveddBrand.muted)
 
                 HStack(spacing: 6) {
-                    ForEach(0..<steps.count) { index in
+                    ForEach(0..<steps.count, id: \.self) { index in
                         Capsule().fill(index <= step ? SaveddBrand.gold : SaveddBrand.border).frame(height: 3)
                     }
                 }
