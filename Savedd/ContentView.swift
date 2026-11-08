@@ -4,6 +4,7 @@ import LinkPresentation
 
 struct ContentView: View {
     @EnvironmentObject private var onboarding: OnboardingStore
+    @EnvironmentObject private var reminders: ProverbReminders
     @StateObject private var addressHistory = AddressHistoryStore()
     @State private var confirmClearHistory = false
     @StateObject private var bookmarkStore = BookmarkStore()
@@ -345,6 +346,11 @@ struct ContentView: View {
                 showTabs = true
             }
             #endif
+        }
+        .onReceive(reminders.$searchURL) { url in
+            guard let url else { return }
+            loadURL(url)
+            reminders.searchURL = nil
         }
         .onChange(of: tabs.map(\.id)) {
             snapshots = snapshots.filter { id, _ in tabs.contains(where: { $0.id == id }) }
@@ -864,5 +870,6 @@ struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
             .environmentObject(OnboardingStore())
+            .environmentObject(ProverbReminders.shared)
     }
 }

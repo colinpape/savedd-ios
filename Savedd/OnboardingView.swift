@@ -2,6 +2,8 @@ import SwiftUI
 
 struct SaveddRootView: View {
     @StateObject private var store = OnboardingStore()
+    @StateObject private var reminders = ProverbReminders.shared
+    @Environment(\.scenePhase) private var scenePhase
     @State private var firstBrowserURL: URL?
 
     var body: some View {
@@ -18,6 +20,17 @@ struct SaveddRootView: View {
             }
         }
         .environmentObject(store)
+        .environmentObject(reminders)
+        .sheet(item: $reminders.presentedChapter) { chapter in
+            DailyProverbView(chapter: chapter) { reminders.searchURL = $0 }
+        }
+        .task { await reminders.refresh() }
+        .onChange(of: scenePhase) {
+            if scenePhase == .active { Task { await reminders.refresh() } }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in
+            Task { await reminders.refresh() }
+        }
     }
 
     private var visualTabsPreview: Bool {
@@ -50,7 +63,7 @@ struct OnboardingView: View {
     @State private var step = 0
     let onFinish: (URL?) -> Void
 
-    private let steps = ["Welcome", "Your invitation", "Your preferences", "Your account"]
+    private let steps = ["Welcome", "Your invitation", "Your preferences", "Daily wisdom", "Your account"]
 
     init(onFinish: @escaping (URL?) -> Void) {
         self.onFinish = onFinish
@@ -59,7 +72,7 @@ struct OnboardingView: View {
         // partners, simulated accounts, or changing the release experience.
         let args = ProcessInfo.processInfo.arguments
         if let index = args.firstIndex(of: "--onboarding-preview-step"),
-           args.indices.contains(index + 1), let value = Int(args[index + 1]), (0...3).contains(value) {
+           args.indices.contains(index + 1), let value = Int(args[index + 1]), (0...4).contains(value) {
             _step = State(initialValue: value)
         }
         #endif
@@ -81,18 +94,18 @@ struct OnboardingView: View {
                     Spacer()
                     Text("SAVEDD").font(.system(.subheadline, design: .serif)).tracking(3)
                     Spacer()
-                    Text("\(step + 1) / 4").font(.caption.monospacedDigit()).frame(width: 44, height: 44)
+                    Text("\(step + 1) / \(steps.count)").font(.caption.monospacedDigit()).frame(width: 44, height: 44)
                 }
                 .foregroundStyle(SaveddBrand.muted)
 
                 HStack(spacing: 6) {
-                    ForEach(0..<4) { index in
+                    ForEach(0..<steps.count) { index in
                         Capsule().fill(index <= step ? SaveddBrand.gold : SaveddBrand.border).frame(height: 3)
                     }
                 }
                 .padding(.horizontal, 8)
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Step \(step + 1) of 4: \(steps[step])")
+                .accessibilityLabel("Step \(step + 1) of \(steps.count): \(steps[step])")
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
@@ -103,6 +116,7 @@ struct OnboardingView: View {
                             switch step {
                             case 1: PartnerPicker(directory: directory)
                             case 2: SaveddPreferencesForm()
+                            case 3: ProverbReminderSetup(onContinue: { move(to: 4) })
                             default: account
                             }
                         }
@@ -168,12 +182,13 @@ struct OnboardingView: View {
 
     private var heading: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(step == 1 ? "Who introduced you?" : step == 2 ? "Make yourself at home." : "Keep your settings with you.")
+            Text(step == 1 ? "Who introduced you?" : step == 2 ? "Make yourself at home." : step == 3 ? "A little wisdom, every day." : "Keep your settings with you.")
                 .font(.system(.largeTitle, design: .serif))
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($headingFocused)
             Text(step == 1 ? "Find the person or community who shared Savedd with you. This step is optional."
                  : step == 2 ? "Choose how you like to search. You can change these anytime in Settings."
+                 : step == 3 ? "Start a daily rhythm with Proverbs. Choose a time for a gentle reminder, or skip for now."
                  : "An account will let you save your preferences beyond this device.")
                 .foregroundStyle(SaveddBrand.muted)
                 .fixedSize(horizontal: false, vertical: true)
@@ -221,7 +236,7 @@ struct OnboardingView: View {
 
     private var actions: some View {
         VStack(spacing: 6) {
-            if step == 3 {
+            if step == 4 {
                 Button { onFinish(SaveddAccountConfiguration.signupURL) } label: {
                     Label("Create an account", systemImage: "person.crop.circle.badge.plus")
                 }
@@ -230,7 +245,7 @@ struct OnboardingView: View {
                 Button("Continue without an account") { onFinish(nil) }
                     .font(.subheadline.weight(.medium))
                     .frame(maxWidth: .infinity, minHeight: 48)
-            } else {
+            } else if step != 3 {
                 Button {
                     if step == 1 { resolveReferral() }
                     move(to: step + 1)
@@ -444,24 +459,43 @@ struct SaveddPreferencesForm: View {
 }
 
 struct SaveddSettingsView: View {
+    @State private var reading: ProverbChapter?
+    @EnvironmentObject private var reminders: ProverbReminders
     @Environment(\.dismiss) private var dismiss
     var body: some View {
         NavigationStack {
             ZStack {
                 OnboardingBackground()
-                ScrollView { SaveddPreferencesForm().padding(24).frame(maxWidth: 560) }
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 32) {
+                        SaveddPreferencesForm()
+                        Divider()
+                        Text("Daily Proverb").font(.system(.title, design: .serif))
+                        Button("Read today’s proverb") { reading = ProverbLibrary.bundled?.chapters.first { $0.day == ProverbLibrary.day() } }
+                            .frame(minHeight: 44)
+                        ProverbReminderSetup()
+                    }
+                    .padding(24).frame(maxWidth: 560)
+                }
             }
             .foregroundStyle(SaveddBrand.foreground).tint(SaveddBrand.gold)
             .navigationTitle("Settings").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
         .preferredColorScheme(.dark)
+        .sheet(item: $reading) { chapter in
+            DailyProverbView(chapter: chapter) { url in
+                dismiss()
+                reminders.searchURL = url
+            }
+        }
     }
 }
 
 struct OnboardingView_Previews: PreviewProvider {
     static var previews: some View {
         OnboardingView { _ in }.environmentObject(OnboardingStore(defaults: UserDefaults(suiteName: "savedd.preview")!))
+            .environmentObject(ProverbReminders.shared)
             .preferredColorScheme(.dark)
     }
 }

@@ -26,6 +26,10 @@ jobs:
         run: |
           swiftc -parse-as-library Savedd/Models.swift Savedd/SearchEngine.swift Tests/AddressHistoryTests.swift -o "$RUNNER_TEMP/address-history-tests"
           "$RUNNER_TEMP/address-history-tests"
+      - name: Test Daily Proverb content and calendar reminders
+        run: |
+          swiftc -parse-as-library Savedd/DailyProverb.swift Tests/DailyProverbTests.swift -o "$RUNNER_TEMP/proverb-tests"
+          "$RUNNER_TEMP/proverb-tests" Savedd/Proverbs.json
       - name: Build for iOS Simulator without signing
         run: xcodebuild -project Savedd.xcodeproj -scheme Savedd -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build
       - name: Prepare simulator
@@ -78,7 +82,7 @@ jobs:
             find "$HOME/Library/Logs/DiagnosticReports" -type f -name 'Savedd*' -exec cp {} screenshots/ \; || true
           }
           trap collect_diagnostics EXIT
-          for STEP in 0 1 2 3; do
+          for STEP in 0 1 2 3 4; do
             CAPTURED=false
             for ATTEMPT in 1 2; do
               if xcrun simctl launch "$DEVICE_ID" com.savedd.browser --onboarding-preview-step "$STEP"; then
