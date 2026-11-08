@@ -17,12 +17,10 @@ struct ContentView: View {
     @State private var snapshots: [UUID: UIImage] = [:]
     @State private var snapshotRequest = UUID()
     @State private var showBookmarks = false
-    @State private var showShare = false
     @State private var showSettings = false
     @State private var showVoiceSearch = false
     @State private var focusAfterDictation = false
-    @State private var shareItems: [Any] = []
-    @State private var shareTitle = ""
+    @State private var sharePage: SharedBrowserPage?
     @State private var isEditingAddress = false
     @FocusState private var addressFieldFocused: Bool
 
@@ -271,8 +269,8 @@ struct ContentView: View {
                 showBookmarks = false
             }
         }
-        .sheet(isPresented: $showShare) {
-            ShareSheet(activityItems: shareItems, bookmarkTitle: shareTitle, onAddBookmark: bookmarkStore.add)
+        .sheet(item: $sharePage) { page in
+            ShareSheet(activityItems: [page.url], bookmarkTitle: page.title, onAddBookmark: bookmarkStore.add)
         }
         .sheet(isPresented: $showVoiceSearch, onDismiss: {
             if focusAfterDictation {
@@ -483,10 +481,9 @@ struct ContentView: View {
     
     private func shareCurrentPage() {
         let url = tabs[activeTabIndex].url
-        shareItems = [url]
         let title = tabs[activeTabIndex].title
-        shareTitle = title.isEmpty || title == "New Tab" ? (url.host ?? url.absoluteString) : title
-        showShare = true
+        sharePage = SharedBrowserPage(url: url,
+                                      title: title.isEmpty || title == "New Tab" ? (url.host ?? url.absoluteString) : title)
     }
 }
 
@@ -799,6 +796,12 @@ final class AddBookmarkActivity: UIActivity {
             onCancel: { [weak self] in self?.activityDidFinish(false) }
         ))
     }
+}
+
+struct SharedBrowserPage: Identifiable {
+    let id = UUID()
+    let url: URL
+    let title: String
 }
 
 struct ShareSheet: UIViewControllerRepresentable {
