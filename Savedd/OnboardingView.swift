@@ -24,7 +24,12 @@ struct SaveddRootView: View {
         .sheet(item: $reminders.presentedChapter) { chapter in
             DailyProverbView(chapter: chapter) { reminders.searchURL = $0 }
         }
-        .task { await reminders.refresh() }
+        .task {
+            await reminders.refresh()
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--daily-proverb-preview") { reminders.open(day: 8) }
+            #endif
+        }
         .onChange(of: scenePhase) {
             if scenePhase == .active { Task { await reminders.refresh() } }
         }
@@ -39,6 +44,7 @@ struct SaveddRootView: View {
             || ProcessInfo.processInfo.arguments.contains("--address-editor-preview")
             || ProcessInfo.processInfo.arguments.contains("--share-menu-preview")
             || ProcessInfo.processInfo.arguments.contains("--navigation-regression")
+            || ProcessInfo.processInfo.arguments.contains("--daily-proverb-preview")
         #else
         return false
         #endif

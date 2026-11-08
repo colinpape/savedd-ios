@@ -1,13 +1,34 @@
 import SwiftUI
 import UserNotifications
+#if canImport(UIKit)
 import UIKit
+#endif
+
+@MainActor
+protocol ProverbNotificationClient {
+    func authorization() async -> UNAuthorizationStatus
+    func requestPermission() async throws
+    func add(_ request: UNNotificationRequest) async throws
+    func removePending(_ identifiers: [String])
+    func removeDelivered(_ identifiers: [String])
+}
+
+@MainActor
+struct SystemProverbNotifications: ProverbNotificationClient {
+    private let center = UNUserNotificationCenter.current()
+    func authorization() async -> UNAuthorizationStatus { await center.notificationSettings().authorizationStatus }
+    func requestPermission() async throws { _ = try await center.requestAuthorization(options: [.alert, .sound]) }
+    func add(_ request: UNNotificationRequest) async throws { try await center.add(request) }
+    func removePending(_ identifiers: [String]) { center.removePendingNotificationRequests(withIdentifiers: identifiers) }
+    func removeDelivered(_ identifiers: [String]) { center.removeDeliveredNotifications(withIdentifiers: identifiers) }
+}
 
 /// Local reminders need neither a server nor an account. Keep them separate from
 /// search preferences so existing settings decode unchanged and stay off websites.
 @MainActor
 final class ProverbReminders: ObservableObject {
     static let shared = ProverbReminders()
-    static let prefix = "savedd.daily-proverb."
+    nonisolated static let prefix = "savedd.daily-proverb."
     @Published private(set) var enabled: Bool
     @Published private(set) var time: ProverbReminderTime
     @Published private(set) var permission: UNAuthorizationStatus = .notDetermined
@@ -15,14 +36,16 @@ final class ProverbReminders: ObservableObject {
     @Published private(set) var error: String?
     @Published var presentedChapter: ProverbChapter?
     @Published var searchURL: URL?
-    private let center: UNUserNotificationCenter
+    private let client: any ProverbNotificationClient
+    private let library: ProverbLibrary?
     private let defaults: UserDefaults
     private var revision = 0
     private static let enabledKey = "savedd.proverbs.enabled.v1"
     private static let timeKey = "savedd.proverbs.time.v1"
 
-    init(center: UNUserNotificationCenter = .current(), defaults: UserDefaults = .standard) {
-        self.center = center
+    init(client: (any ProverbNotificationClient)? = nil, defaults: UserDefaults = .standard, library: ProverbLibrary? = ProverbLibrary.bundled) {
+        self.client = client ?? SystemProverbNotifications()
+        self.library = library
         self.defaults = defaults
         enabled = defaults.bool(forKey: Self.enabledKey)
         let saved = defaults.data(forKey: Self.timeKey).flatMap { try? JSONDecoder().decode(ProverbReminderTime.self, from: $0) }
@@ -50,10 +73,10 @@ final class ProverbReminders: ObservableObject {
         defer { busy = false }
         error = nil
         do {
-            permission = await center.notificationSettings().authorizationStatus
+            permission = await client.authorization()
             if permission == .notDetermined {
-                _ = try await center.requestAuthorization(options: [.alert, .sound])
-                permission = await center.notificationSettings().authorizationStatus
+                try await client.requestPermission()
+                permission = await client.authorization()
             }
             guard canNotify else {
                 enabled = false
@@ -72,17 +95,17 @@ final class ProverbReminders: ObservableObject {
         revision += 1
         enabled = false
         defaults.set(false, forKey: Self.enabledKey)
-        center.removePendingNotificationRequests(withIdentifiers: (1...31).map { Self.prefix + String($0) })
-        center.removeDeliveredNotifications(withIdentifiers: (1...31).map { Self.prefix + String($0) })
+        client.removePending((1...31).map { Self.prefix + String($0) })
+        client.removeDelivered((1...31).map { Self.prefix + String($0) })
         error = nil
     }
 
     func refresh() async {
-        permission = await center.notificationSettings().authorizationStatus
+        permission = await client.authorization()
         if enabled && canNotify { await schedule() }
         else if enabled {
             // Preserve the user's subscription choice if iOS permission is revoked.
-            center.removePendingNotificationRequests(withIdentifiers: (1...31).map { Self.prefix + String($0) })
+            client.removePending((1...31).map { Self.prefix + String($0) })
         }
     }
 
@@ -90,7 +113,8 @@ final class ProverbReminders: ObservableObject {
         revision += 1
         let currentRevision = revision
         error = nil
-        guard let library = ProverbLibrary.bundled else {
+        guard let library else {
+            disable()
             error = "The Daily Proverb readings are unavailable. Please update Savedd."
             return
         }
@@ -100,9 +124,9 @@ final class ProverbReminders: ObservableObject {
             for chapter in library.chapters {
                 guard enabled, currentRevision == revision else { return }
                 let request = chapter.notification(at: time)
-                try await center.add(request)
+                try await client.add(request)
                 if !enabled {
-                    center.removePendingNotificationRequests(withIdentifiers: [request.identifier])
+                    client.removePending([request.identifier])
                     return
                 }
                 guard currentRevision == revision else { return }
@@ -116,10 +140,11 @@ final class ProverbReminders: ObservableObject {
     }
 
     func open(day: Int) {
-        presentedChapter = ProverbLibrary.bundled?.chapters.first { $0.day == day }
+        presentedChapter = library?.chapters.first { $0.day == day }
     }
 }
 
+#if canImport(UIKit)
 /// Set at launch so tapping a reminder also works when the app was closed.
 final class ProverbNotificationDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
@@ -141,3 +166,5 @@ final class ProverbNotificationDelegate: NSObject, UIApplicationDelegate, UNUser
         completionHandler([.banner, .sound, .list])
     }
 }
+
+#endif

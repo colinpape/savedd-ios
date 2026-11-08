@@ -28,7 +28,7 @@ jobs:
           "$RUNNER_TEMP/address-history-tests"
       - name: Test Daily Proverb content and calendar reminders
         run: |
-          swiftc -parse-as-library Savedd/DailyProverb.swift Tests/DailyProverbTests.swift -o "$RUNNER_TEMP/proverb-tests"
+          swiftc -parse-as-library Savedd/DailyProverb.swift Savedd/ProverbReminders.swift Tests/DailyProverbTests.swift -o "$RUNNER_TEMP/proverb-tests"
           "$RUNNER_TEMP/proverb-tests" Savedd/Proverbs.json
       - name: Build for iOS Simulator without signing
         run: xcodebuild -project Savedd.xcodeproj -scheme Savedd -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build
@@ -98,6 +98,10 @@ jobs:
             done
             test "$CAPTURED" = true
           done
+          xcrun simctl launch "$DEVICE_ID" com.savedd.browser --daily-proverb-preview
+          sleep 12
+          xcrun simctl io "$DEVICE_ID" screenshot screenshots/daily-proverb.png
+          xcrun simctl terminate "$DEVICE_ID" com.savedd.browser
           xcrun simctl launch "$DEVICE_ID" com.savedd.browser --visual-tabs-preview
           sleep 14
           xcrun simctl io "$DEVICE_ID" screenshot screenshots/browser-voice-button.png
