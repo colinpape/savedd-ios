@@ -52,7 +52,7 @@ struct ProverbReminderSetup: View {
                 Text(error).font(.subheadline).foregroundStyle(SaveddBrand.muted)
             }
             if showActions {
-                if reminders.enabled && reminders.canNotify {
+                if reminders.enabled {
                     Button("Turn off daily reminders") { reminders.disable() }
                         .frame(minHeight: 44)
                 } else {
