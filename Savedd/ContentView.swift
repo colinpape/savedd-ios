@@ -697,7 +697,6 @@ struct BookmarksView: View {
     @ObservedObject var store: BookmarkStore
     var onSelect: (Bookmark) -> Void
     @Environment(\.dismiss) private var dismiss
-    @State private var showAdd = false
     
     var body: some View {
         NavigationView {
@@ -718,22 +717,14 @@ struct BookmarksView: View {
             }
             .navigationTitle("Bookmarks")
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Done") { dismiss() }
-                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
-                        showAdd = true
+                        dismiss()
                     } label: {
-                        Image(systemName: "plus")
+                        Image(systemName: "xmark")
                     }
+                    .accessibilityLabel("Close bookmarks")
                 }
-            }
-            .sheet(isPresented: $showAdd) {
-                BookmarkEditorView(title: "", url: "", onSave: { bookmark in
-                    store.add(bookmark)
-                    showAdd = false
-                }, onCancel: { showAdd = false })
             }
         }
     }
