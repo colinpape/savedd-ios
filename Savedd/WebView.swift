@@ -5,10 +5,12 @@ struct HistoryItem: Identifiable {
     let id = UUID()
     let title: String
     let url: URL
+    let offset: Int
 }
 
 struct WebView: UIViewRepresentable {
     @Binding var url: URL
+    @Binding var navigationRequest: BrowserNavigationRequest
     @Binding var canGoBack: Bool
     @Binding var canGoForward: Bool
     @Binding var backHistory: [HistoryItem]
@@ -36,7 +38,7 @@ struct WebView: UIViewRepresentable {
         webView.clipsToBounds = true
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
-        context.coordinator.observeTitle(of: webView)
+        context.coordinator.observePage(of: webView)
         webView.allowsBackForwardNavigationGestures = true
         // The browser owns insets, including its bottom keyboard-aware toolbar.
         webView.scrollView.contentInsetAdjustmentBehavior = .never
@@ -76,21 +78,25 @@ struct WebView: UIViewRepresentable {
                 : UIColor(red: 0.96, green: 0.94, blue: 0.89, alpha: 1)
             webView.scrollView.backgroundColor = webView.backgroundColor
         }
-        if webView.url != url {
-            if url.isFileURL {
-                #if DEBUG
-                if ProcessInfo.processInfo.arguments.contains("--visual-tabs-preview"),
-                   let html = try? String(contentsOf: url, encoding: .utf8) {
-                    webView.loadHTMLString(html, baseURL: url)
-                } else {
-                    webView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+        let request = navigationRequest
+        let isNewRequest = context.coordinator.lastNavigationRequestID != request.id
+        if isNewRequest {
+            context.coordinator.lastNavigationRequestID = request.id
+            switch request.action {
+            case .load(let destination):
+                load(webView, destination)
+            case .back:
+                if webView.canGoBack { webView.goBack() }
+            case .forward:
+                if webView.canGoForward { webView.goForward() }
+            case .history(let offset, let destination):
+                if let item = webView.backForwardList.item(at: offset), item.url == destination {
+                    webView.go(to: item)
                 }
-                #else
-                webView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
-                #endif
-            } else {
-                webView.load(URLRequest(url: url))
             }
+        } else if simulateLegacyURLSync && webView.url != url {
+            // Debug negative control: recreate the previous homepage-replay bug.
+            load(webView, url)
         } else if preferencesChanged, let currentURL = webView.url,
                   currentURL.scheme == "https",
                   ["savedd.com", "www.savedd.com"].contains(currentURL.host ?? ""),
@@ -104,6 +110,31 @@ struct WebView: UIViewRepresentable {
         }
         // Navigation delegate callbacks publish history; avoid changing SwiftUI
         // state synchronously during updateUIView.
+    }
+
+    private func load(_ webView: WKWebView, _ url: URL) {
+        if url.isFileURL {
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--visual-tabs-preview"),
+               let html = try? String(contentsOf: url, encoding: .utf8) {
+                webView.loadHTMLString(html, baseURL: url)
+            } else {
+                webView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+            }
+            #else
+            webView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+            #endif
+        } else {
+            webView.load(URLRequest(url: url))
+        }
+    }
+
+    private var simulateLegacyURLSync: Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments.contains("--simulate-legacy-url-sync")
+        #else
+        return false
+        #endif
     }
 
     private func updateViewport(_ webView: WKWebView) {
@@ -128,12 +159,11 @@ struct WebView: UIViewRepresentable {
         canGoForward = webView.canGoForward
 
         let list = webView.backForwardList
-        backHistory = list.backList.map { item in
-            HistoryItem(title: item.title ?? item.url.absoluteString, url: item.url)
-        }.reversed()
-
-        forwardHistory = list.forwardList.map { item in
-            HistoryItem(title: item.title ?? item.url.absoluteString, url: item.url)
+        backHistory = list.backList.reversed().enumerated().map { offset, item in
+            HistoryItem(title: item.title ?? item.url.absoluteString, url: item.url, offset: -(offset + 1))
+        }
+        forwardHistory = list.forwardList.enumerated().map { offset, item in
+            HistoryItem(title: item.title ?? item.url.absoluteString, url: item.url, offset: offset + 1)
         }
     }
 
@@ -146,8 +176,26 @@ struct WebView: UIViewRepresentable {
         var appliedPreferences: String
         var snapshotRequest: UUID
         private var titleObservation: NSKeyValueObservation?
+        private var urlObservation: NSKeyValueObservation?
+        var lastNavigationRequestID: UUID?
+        #if DEBUG
+        private var regressionStarted = false
+        #endif
 
-        func observeTitle(of webView: WKWebView) {
+        func observePage(of webView: WKWebView) {
+            if !parent.simulateLegacyURLSync {
+                // History API changes (pushState/replaceState/popstate) need not
+                // trigger didCommit/didFinish or a document-title change.
+                urlObservation = webView.observe(\.url, options: [.new]) { [weak self] webView, _ in
+                    guard let url = webView.url else { return }
+                    DispatchQueue.main.async { [weak self, weak webView] in
+                        guard let self, let webView, webView.url == url else { return }
+                        self.parent.onPageChanged(url, webView.title ?? url.host ?? "New Tab")
+                        self.parent.url = url
+                        self.parent.updateHistory(webView)
+                    }
+                }
+            }
             titleObservation = webView.observe(\.title, options: [.new]) { [weak self] webView, _ in
                 guard let url = webView.url, let title = webView.title, !title.isEmpty else { return }
                 DispatchQueue.main.async { [weak self, weak webView] in
@@ -201,6 +249,12 @@ struct WebView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--navigation-regression"), !regressionStarted {
+                regressionStarted = true
+                Task { @MainActor in await self.runNavigationRegression(webView) }
+            }
+            #endif
             if let url = webView.url {
                 parent.onPageChanged(url, webView.title?.isEmpty == false ? webView.title! : (url.host ?? "New Tab"))
                 webView.evaluateJavaScript("document.title") { [weak self, weak webView] result, _ in
@@ -226,3 +280,115 @@ struct WebView: UIViewRepresentable {
         }
     }
 }
+
+#if DEBUG
+@MainActor
+private extension WebView.Coordinator {
+    func regressionJS(_ source: String, in webView: WKWebView) async throws -> String {
+        try await withCheckedThrowingContinuation { continuation in
+            webView.evaluateJavaScript(source) { result, error in
+                if let error { continuation.resume(throwing: error) }
+                else { continuation.resume(returning: result as? String ?? "") }
+            }
+        }
+    }
+
+    func requireRegression(_ condition: Bool, _ message: String) throws {
+        if !condition { throw NSError(domain: "SaveddNavigationRegression", code: 1,
+                                      userInfo: [NSLocalizedDescriptionKey: message]) }
+    }
+
+    func runNavigationRegression(_ webView: WKWebView) async {
+        var stages: [String] = []
+        var passed = false
+        var failure = ""
+        do {
+            try await Task.sleep(for: .seconds(1))
+            let originalBackCount = webView.backForwardList.backList.count
+            let originalDocument = try await regressionJS("window.documentID", in: webView)
+            _ = try await regressionJS("document.getElementById('search').requestSubmit(); 'submitted'", in: webView)
+            // Force the same SwiftUI redraw that previously replayed the homepage.
+            parent.onSnapshot(UIImage(systemName: "globe")!)
+            try await Task.sleep(for: .seconds(2))
+            try requireRegression(webView.url?.query?.contains("q=coffee") == true,
+                                  "Website search was sent back to the homepage")
+            try requireRegression(parent.url == webView.url, "The address bar missed a History API URL change")
+            let result = try await regressionJS("document.getElementById('result').textContent", in: webView)
+            try requireRegression(result == "Results: coffee", "Expected search results to stay visible")
+            try requireRegression(webView.backForwardList.backList.count == originalBackCount + 1,
+                                  "Search added an unexpected extra navigation")
+            stages.append("website-search-and-redraw")
+
+            _ = try await regressionJS("history.replaceState({}, '', '?q=tea'); render(); 'replaced'", in: webView)
+            parent.onSnapshot(UIImage(systemName: "magnifyingglass")!)
+            try await Task.sleep(for: .seconds(1))
+            try requireRegression(parent.url.query == "q=tea", "replaceState did not update the browser address")
+            try requireRegression(webView.backForwardList.backList.count == originalBackCount + 1,
+                                  "replaceState unexpectedly added history")
+            stages.append("replaceState")
+
+            parent.navigationRequest = BrowserNavigationRequest(.back)
+            try await Task.sleep(for: .seconds(2))
+            try requireRegression(webView.url?.query == nil, "Native Back did not return home")
+            let home = try await regressionJS("document.getElementById('result').textContent", in: webView)
+            try requireRegression(home == "Home", "Back did not restore the homepage state")
+            try requireRegression(webView.canGoForward, "Back destroyed the forward history")
+            stages.append("native-back")
+
+            parent.navigationRequest = BrowserNavigationRequest(.forward)
+            try await Task.sleep(for: .seconds(2))
+            try requireRegression(webView.url?.query == "q=tea", "Native Forward did not restore results")
+            try requireRegression(webView.backForwardList.backList.count == originalBackCount + 1,
+                                  "Back/Forward created duplicate history entries")
+            stages.append("native-forward")
+
+            // A title change and a redraw must leave the document intact.
+            _ = try await regressionJS("document.title = 'Updated results'; 'updated'", in: webView)
+            parent.onSnapshot(UIImage(systemName: "book")!)
+            try await Task.sleep(for: .seconds(1))
+            let sameDocument = try await regressionJS("window.documentID", in: webView)
+            try requireRegression(sameDocument == originalDocument, "A title/SwiftUI update reloaded the document")
+            stages.append("title-update-without-reload")
+
+            parent.navigationRequest = BrowserNavigationRequest(.history(offset: -1, url: webView.backForwardList.backItem!.url))
+            try await Task.sleep(for: .seconds(2))
+            try requireRegression(webView.url?.query == nil && webView.canGoForward,
+                                  "History-menu selection loaded a new page instead of moving in history")
+            stages.append("history-menu")
+
+            var components = URLComponents(url: webView.url!, resolvingAgainstBaseURL: false)!
+            components.queryItems = [URLQueryItem(name: "q", value: "typed")]
+            let typedURL = components.url!
+            parent.navigationRequest = BrowserNavigationRequest(.load(typedURL))
+            try await Task.sleep(for: .seconds(2))
+            try requireRegression(webView.url == typedURL && parent.url == typedURL,
+                                  "An explicit address-bar navigation was ignored")
+            let firstLoadID = try await regressionJS("window.documentID", in: webView)
+            parent.navigationRequest = BrowserNavigationRequest(.load(typedURL))
+            try await Task.sleep(for: .seconds(2))
+            let secondLoadID = try await regressionJS("window.documentID", in: webView)
+            try requireRegression(!firstLoadID.isEmpty && firstLoadID != secondLoadID,
+                                  "Re-submitting the same address did not load it")
+            stages.append("explicit-and-same-url-navigation")
+
+            _ = try await regressionJS("location.replace('?q=redirect'); 'redirecting'", in: webView)
+            try await Task.sleep(for: .seconds(2))
+            try requireRegression(webView.url?.query == "q=redirect" && parent.url == webView.url,
+                                  "A page-driven navigation replayed an old address-bar command")
+            stages.append("page-driven-redirect")
+            passed = true
+        } catch { failure = error.localizedDescription }
+
+        let report: [String: Any] = [
+            "passed": passed, "stages": stages, "error": failure,
+            "url": webView.url?.absoluteString ?? "",
+            "backHistory": webView.backForwardList.backList.map { $0.url.absoluteString }
+        ]
+        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        try? FileManager.default.createDirectory(at: documents, withIntermediateDirectories: true)
+        if let data = try? JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys]) {
+            try? data.write(to: documents.appendingPathComponent("navigation-regression.json"), options: .atomic)
+        }
+    }
+}
+#endif

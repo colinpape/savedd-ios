@@ -27,6 +27,29 @@ struct ContentView: View {
 
     init(initialURL: URL = SaveddSearchEngine.homeURL) {
         #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--navigation-regression") {
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("navigation-regression.html")
+            let html = """
+            <html><head><meta name="viewport" content="width=device-width"><title>Unchanged title</title></head>
+            <body><form id="search"><input id="query" value="coffee"><button>Search</button></form>
+            <h1 id="result"></h1><script>
+            window.documentID = Math.random().toString(36);
+            function render() { document.getElementById('result').textContent =
+                new URLSearchParams(location.search).has('q')
+                ? 'Results: ' + new URLSearchParams(location.search).get('q') : 'Home'; }
+            document.getElementById('search').addEventListener('submit', function(e) {
+                e.preventDefault();
+                history.pushState({}, '', '?q=' + encodeURIComponent(document.getElementById('query').value));
+                render();
+            });
+            addEventListener('popstate', render);
+            render();
+            </script></body></html>
+            """
+            try? html.write(to: url, atomically: true, encoding: .utf8)
+            _tabs = State(initialValue: [BrowserTab(url: url)])
+            return
+        }
         if ProcessInfo.processInfo.arguments.contains("--share-menu-preview") {
             _tabs = State(initialValue: [BrowserTab(url: SaveddSearchEngine.homeURL, title: "Savedd — Seek, and ye shall find.")])
             return
@@ -62,6 +85,7 @@ struct ContentView: View {
                 ForEach(tabs) { tab in
                     WebView(
                         url: tabURL(tab.id),
+                        navigationRequest: tabNavigationRequest(tab.id),
                         canGoBack: activeState($canGoBack, for: tab.id),
                         canGoForward: activeState($canGoForward, for: tab.id),
                         backHistory: activeState($backHistory, for: tab.id),
@@ -214,7 +238,7 @@ struct ContentView: View {
                             } else {
                                 ForEach(backHistory) { item in
                                     Button(item.title) {
-                                        loadURL(item.url)
+                                        goToHistory(item)
                                     }
                                 }
                             }
@@ -227,7 +251,7 @@ struct ContentView: View {
                             } else {
                                 ForEach(forwardHistory) { item in
                                     Button(item.title) {
-                                        loadURL(item.url)
+                                        goToHistory(item)
                                     }
                                 }
                             }
@@ -437,6 +461,17 @@ struct ContentView: View {
         )
     }
 
+    private func tabNavigationRequest(_ id: UUID) -> Binding<BrowserNavigationRequest> {
+        Binding(
+            get: { tabs.first(where: { $0.id == id })?.navigationRequest
+                ?? BrowserNavigationRequest(.load(SaveddSearchEngine.homeURL)) },
+            set: { request in
+                guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
+                tabs[index].navigationRequest = request
+            }
+        )
+    }
+
     private func activeState<Value>(_ binding: Binding<Value>, for id: UUID) -> Binding<Value> {
         Binding(get: { binding.wrappedValue }, set: { value in
             if tabs[activeTabIndex].id == id { binding.wrappedValue = value }
@@ -453,24 +488,24 @@ struct ContentView: View {
     private func loadURL(_ url: URL) {
         snapshots[tabs[activeTabIndex].id] = nil
         tabs[activeTabIndex].url = url
+        tabs[activeTabIndex].navigationRequest = BrowserNavigationRequest(.load(url))
         searchText = url.absoluteString
         isEditingAddress = false
         addressFieldFocused = false
     }
     
     private func goBack() {
-        // Single step back — full history is available via long-press menu
-        if let first = backHistory.first {
-            loadURL(first.url)
-        }
+        tabs[activeTabIndex].navigationRequest = BrowserNavigationRequest(.back)
     }
-    
+
     private func goForward() {
-        if let first = forwardHistory.first {
-            loadURL(first.url)
-        }
+        tabs[activeTabIndex].navigationRequest = BrowserNavigationRequest(.forward)
     }
-    
+
+    private func goToHistory(_ item: HistoryItem) {
+        tabs[activeTabIndex].navigationRequest = BrowserNavigationRequest(.history(offset: item.offset, url: item.url))
+    }
+
     private func newTab() {
         let newTab = BrowserTab(url: SaveddSearchEngine.homeURL)
         tabs.append(newTab)

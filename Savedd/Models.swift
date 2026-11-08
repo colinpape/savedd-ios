@@ -1,13 +1,32 @@
 import SwiftUI
 
+enum BrowserNavigationAction: Codable {
+    case load(URL)
+    case back
+    case forward
+    case history(offset: Int, url: URL)
+}
+
+struct BrowserNavigationRequest: Codable, Identifiable {
+    let id: UUID
+    let action: BrowserNavigationAction
+
+    init(_ action: BrowserNavigationAction) {
+        id = UUID()
+        self.action = action
+    }
+}
+
 struct BrowserTab: Identifiable, Codable {
     var id = UUID()
     var url: URL
     var title: String
-    
+    var navigationRequest: BrowserNavigationRequest
+
     init(url: URL, title: String = "New Tab") {
         self.url = url
         self.title = title
+        self.navigationRequest = BrowserNavigationRequest(.load(url))
     }
 }
 
