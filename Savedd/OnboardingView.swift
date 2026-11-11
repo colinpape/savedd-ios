@@ -51,11 +51,12 @@ struct SaveddRootView: View {
     }
 
     private func referralURL(_ url: URL) -> URL {
-        guard let partner = store.preferences.partner,
+        let code = store.preferences.partner?.slug ?? store.preferences.referralCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !code.isEmpty,
               var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return url }
         var query = components.queryItems ?? []
         query.removeAll { $0.name == "ref" }
-        query.append(URLQueryItem(name: "ref", value: partner.pubkey))
+        query.append(URLQueryItem(name: "ref", value: code))
         components.queryItems = query
         return components.url ?? url
     }
@@ -224,11 +225,9 @@ struct OnboardingView: View {
             Label("Your preferences are already saved on this device.", systemImage: "iphone")
                 .font(.subheadline).foregroundStyle(SaveddBrand.muted)
                 .fixedSize(horizontal: false, vertical: true)
-            if SaveddAccountConfiguration.signupURL == nil {
-                Text("Email sign-up is coming soon. You can start searching now and create an account later.")
-                    .font(.subheadline).foregroundStyle(SaveddBrand.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            Text("Join or sign in with email. Savedd sends a secure sign-in link; you can also use an existing password or an email code. Your account session stays in this browser.")
+                .font(.subheadline).foregroundStyle(SaveddBrand.muted)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -246,7 +245,7 @@ struct OnboardingView: View {
         VStack(spacing: 6) {
             if step == 4 {
                 Button { onFinish(SaveddAccountConfiguration.signupURL) } label: {
-                    Label("Create an account", systemImage: "person.crop.circle.badge.plus")
+                    Label("Continue with email", systemImage: "envelope")
                 }
                 .buttonStyle(GoldButtonStyle())
                 .disabled(SaveddAccountConfiguration.signupURL == nil)
@@ -350,7 +349,8 @@ private struct PartnerPicker: View {
                 Text(error).font(.subheadline).foregroundStyle(SaveddBrand.muted)
                 Button("Try again") { directory.load() }.frame(minHeight: 44)
             } else if matches.isEmpty {
-                Text(query.isEmpty ? "No partners are listed yet. Have a code? You can enter it above."
+                Text(!directory.isEnabled ? "The referral program is paused. You can skip this step."
+                     : query.isEmpty ? "No partners are listed yet. Have a code? You can enter it above."
                      : "No matching partner. Check the spelling, or continue to save your code for later.")
                     .font(.subheadline).foregroundStyle(SaveddBrand.muted)
             } else {

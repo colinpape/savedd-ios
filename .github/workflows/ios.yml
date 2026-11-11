@@ -17,11 +17,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Verify directory trust rules and website preference handoff
+      - name: Verify website preference handoff
         working-directory: Tools/partner-directory
-        run: npm ci && npm test && npm run build
-      - name: Verify bundled directory reader is current
-        run: git diff --exit-code -- Savedd/PartnerDirectory.js
+        run: npm ci && npm test
+      - name: Test database referral directory and email callback routing
+        run: |
+          swiftc -parse-as-library Savedd/PartnerDirectory.swift Savedd/OnboardingStore.swift Tests/OnboardingIntegrationTests.swift -o "$RUNNER_TEMP/onboarding-tests"
+          "$RUNNER_TEMP/onboarding-tests"
       - name: Test address history and search routing
         run: |
           swiftc -parse-as-library Savedd/Models.swift Savedd/SearchEngine.swift Tests/AddressHistoryTests.swift -o "$RUNNER_TEMP/address-history-tests"

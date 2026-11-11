@@ -347,6 +347,9 @@ struct ContentView: View {
             }
             #endif
         }
+        .onOpenURL { url in
+            if let callback = SaveddAccountConfiguration.callbackURL(url) { loadURL(callback) }
+        }
         .onReceive(reminders.$searchURL) { url in
             guard let url else { return }
             loadURL(url)

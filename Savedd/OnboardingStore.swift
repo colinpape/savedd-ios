@@ -50,13 +50,19 @@ final class OnboardingStore: ObservableObject {
 }
 
 enum SaveddAccountConfiguration {
-    /// Set this Info.plist value when the website's email signup is deployed.
-    /// Do not send people to the current Nostr login or invent a working signup route.
-    static var signupURL: URL? {
-        guard let raw = Bundle.main.object(forInfoDictionaryKey: "SaveddSignupURL") as? String,
-              let url = URL(string: raw), url.scheme == "https",
-              url.host == "savedd.com", url.port == nil || url.port == 443 else { return nil }
-        return url
+    /// Use one canonical origin so the website's PKCE verifier and session stay
+    /// in the same persistent WKWebView storage when returning from Mail.
+    static let signupURL = URL(string: "https://www.savedd.com/auth/email?client=ios")
+
+    static func callbackURL(_ url: URL) -> URL? {
+        guard url.scheme?.lowercased() == "savedd", url.host == "auth", url.path == "/callback",
+              url.user == nil, url.password == nil, url.port == nil, url.fragment == nil,
+              let source = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let items = source.queryItems, items.count == 1, items[0].name == "code",
+              let code = items[0].value, !code.isEmpty, code.count <= 2048 else { return nil }
+        var destination = URLComponents(string: "https://www.savedd.com/")!
+        destination.queryItems = [URLQueryItem(name: "code", value: code)]
+        return destination.url
     }
 }
 
