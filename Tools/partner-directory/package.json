@@ -1,11 +1,8 @@
 {
-  "name": "savedd-ios-partner-directory",
+  "name": "savedd-ios-onboarding-checks",
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "esbuild reader.js --bundle --platform=browser --target=safari17 --format=iife --minify --legal-comments=inline --outfile=../../Savedd/PartnerDirectory.js",
     "test": "node --test *.test.js"
-  },
-  "dependencies": { "nostr-tools": "2.23.3" },
-  "devDependencies": { "esbuild": "0.25.12" }
+  }
 }

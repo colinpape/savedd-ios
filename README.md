@@ -9,4 +9,4 @@ The app includes first-run onboarding, optional partner referrals, local appeara
 - [Onboarding behavior and website integration](ONBOARDING.md)
 - [TestFlight setup, upload, and installation](TESTFLIGHT.md)
 
-CI checks the directory reader and website preference handoff, builds the simulator app, captures onboarding screens, and checks an unsigned Release archive for a generic iOS device. CI does not sign or upload to Apple.
+CI checks the database partner directory, email callback routing, and website preference handoff, builds the simulator app, captures onboarding screens, and checks an unsigned Release archive for a generic iOS device. CI does not sign or upload to Apple.

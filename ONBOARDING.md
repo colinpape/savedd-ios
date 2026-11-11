@@ -1,106 +1,73 @@
 # First-run onboarding
 
-Four native SwiftUI screens introduce SAVEDD, optionally select a referrer, set
-preferences, and invite account creation. They use the website's Vespers dark
-palette, serif wordmark, gold accent, and cross/magnifier mark. Setup stays dark;
-the chosen light/dark appearance applies when browsing starts.
+Five native screens introduce Savedd, optionally choose a referrer, set search preferences, offer Daily Proverb reminders, and invite email sign-in. Setup uses the website's dark palette. Native appearance/language/privacy choices are saved locally and handed to the website before it mounts. An account remains optional.
 
-Settings are saved in UserDefaults as the user edits them. Completion is stored
-separately, so completed setup does not reappear on launch. No account is required
-to search. The browser's menu button opens Settings to change these preferences.
+## Database partner directory
 
-## Partner source
+The source is Savedd-com/Savedd's deployed Supabase `referrals` Edge Function:
+`POST https://iofxuntxecxcqihuugcr.supabase.co/functions/v1/referrals`, JSON
+`{"action":"public"}`, using the website's public publishable key in `apikey`.
+No user bearer token, service-role key, direct table access, relay queries, WebKit
+signature reader, or Nostr publishing is involved. The API returns active partners
+and the program's enabled flag. `pubkey` remains the database's public partner
+identifier for compatibility with existing accounts; it is not a relay lookup.
 
-The directory uses the **existing website `feature/partner-program` branch**:
-`src/lib/partners.ts`, `src/hooks/usePartners.ts`, `src/components/PartnerAdmin.tsx`,
-and `src/lib/saveddProtocol.ts`. This feature is not present on website main at
-the time of implementation; native reading does not require changing or merging
-the website. Admin-approved partners are public kind 30078 records with d-tag
-`savedd:partners`, containing `{ version: 1, partners: [{ slug, pubkey, name }] }`.
+The directory starts loading on the welcome screen, deduplicates concurrent loads,
+and caches successful results (including empty ones) for that onboarding session.
+Failures retain retry/skip/code entry. Stopping onboarding cancels pending work.
+Partner names/codes are filtered locally, with initials as avatar placeholders.
+Paused programs and unavailable/invalid partners are not treated as approved.
 
-Native URLSession requests query the website's public relays. The bundled JavaScript
-reader verifies Nostr signatures, resolves owner-signed canonical/legacy admin roles, and accepts the latest
-directory only from the owner or currently approved admins. Empty directories and
-admin removals are respected. No private key or login is required. Search/filtering
-is local: typed names and codes are not sent to relays. Initials are intentional
-avatar placeholders; the existing directory schema does not have image URLs.
+The selected slug (or an unresolved typed code) is passed as a URL-encoded `ref`
+parameter on the first website navigation. The website revalidates it against the
+current public directory. Its existing ReferralCapture/ReferralEnrollment logic
+handles first-touch, durable account claims, self-referral rejection and existing
+account attribution. The native app does not write account referrals or override
+an existing website referrer. Existing saved native settings decode unchanged.
 
-Loading, empty, failed, no-match, and selected states are supported. A recognized
-selection is passed on the initial Savedd URL as `?ref=<pubkey>` so the website's
-existing referral capture enforces first-touch, program settings, and self-referral
-rules. The app does not directly publish referral pings or overwrite attribution.
-An unrecognized code is explicitly saved as unverified and does not attribute a
-partner. Skip clears the draft selection. No 50% revenue-sharing copy is added.
+## Email sign-in and the return from Mail
 
-To rebuild the bundled reader:
+**Continue with email** opens the canonical URL
+`https://www.savedd.com/auth/email?client=ios` in the existing persistent browser.
+The website renders its existing email form: magic link by default, existing
+password as a fallback, and optional code entry if the email template includes it.
+The native app never stores passwords or copies web session tokens.
 
-```sh
-cd Tools/partner-directory
-npm ci
-npm test
-npm run build
-```
+For requests started by that page, the website uses
+`https://www.savedd.com/auth/ios-callback` as the email redirect. This HTTPS page
+forwards only the PKCE `code` to the fixed `savedd://auth/callback?code=…` app URL.
+It deliberately disables Supabase URL-session consumption on that intermediate
+page so Safari cannot consume a callback intended for the app. It shows an
+explicit Open Savedd button so browsers launch the app through a user gesture.
 
-`nostr-tools` and its bundled noble/scure cryptography dependencies are MIT licensed;
-their license notices ship as the `Savedd/ThirdPartyNotices.txt` app resource. Build tooling
-is not needed to run the native app; the JavaScript resource is checked in.
+The app registers `savedd` in Info.plist, accepts only the exact auth callback
+shape, and loads `https://www.savedd.com/?code=…` in its persistent WKWebView.
+The website completes the PKCE exchange using the verifier saved on the same
+canonical origin when the email was requested. Callbacks opened inside the browser
+also use this path. It works with cold/warm app URL launches after onboarding.
+Opening the account page completes *device onboarding*, not authentication: only
+the website's verified session marks the user signed in. Expired/reused links use
+the website's existing error/retry behavior.
 
-## Website settings bridge
+Deploy the companion website routes before distributing this app update. The
+existing documented Supabase allowlist `https://www.savedd.com/**` covers the HTTPS
+return route; if the production project uses narrower redirects, add the exact
+HTTPS callback URL in Supabase Auth URL configuration. No custom-scheme Supabase
+redirect, Associated Domains entitlement, or Apple Team change is required.
 
-An origin-restricted, main-frame-only WKUserScript trusts exactly the HTTPS origins
-`savedd.com` and `www.savedd.com` (the current redirect destination), and merges `theme`, `languageFilter`,
-and `privacyMode` into `savedd:app-config` **before the website mounts**. A revision
-marker avoids reapplying the same native choices on each navigation, preserving
-subsequent changes made in the website. Other website settings and the existing
-`savedd:referrer` are preserved. Changing native Settings refreshes the current
-Savedd page while keeping the web view and its navigation history. External pages
-are left alone; the updated bootstrap applies on the next Savedd navigation.
-Native controls do not currently mirror later edits
-made independently in the website's Settings screen.
+The website's email account controls explicitly save/load supported search
+preferences. Onboarding does not silently upload settings or claim that local
+Daily Proverb reminders/bookmarks are account-synced.
 
-Search language is a result preference, using the website's existing supported
-language list; it does not translate app menus. Privacy Mode uses the website's
-existing community-index-only provider behavior. It is not an incognito session,
-VPN, or guarantee against AI/provider connections. The explanation states this.
+## Verification
 
-## Handoff to Grok: email accounts
+CI checks API request shape, data validation, cache/empty/retry/paused/cancellation
+behavior, preservation of existing native preferences, and callback URL allowlisting.
+It also runs the origin-limited website preference bridge tests, native history and
+Daily Proverb tests, both simulator builds, and the unsigned Release archive.
 
-Email auth and cloud preference sync are intentionally not implemented in this
-iOS change. Until signup is deployed, the account invitation says email signup is
-coming soon, disables Create an account, and offers Continue without an account.
-No credentials are collected and no account/sync success is claimed.
-
-Once the website's email flow is deployed:
-
-1. Set `SaveddSignupURL` in the app target's Info.plist to its actual HTTPS URL on
-   `savedd.com`. The create-account button becomes enabled and opens that URL
-   inside the existing browser (with the same cookie/data store).
-2. On that origin, signup can read `localStorage['savedd:ios-onboarding']`:
-   `{ version: 1, theme, languageFilter, privacyMode, referralCode, partnerPubkey,
-   partnerName }`. This is untrusted client input; revalidate partner membership
-and code server-side, and enforce first-touch/account rules there.
-3. After successful email authentication, save the preferences to the user's
-   account using the website's new authenticated API. Do not infer authentication
-   from opening a URL or closing a screen. Resolve pending codes through the same
-   approved directory; never assign arbitrary typed codes as verified referrals.
-
-## Validation
-
-CI runs directory signature/trust tests, preference-bridge origin/persistence
-checks, bundle reproducibility, and an unsigned iOS Simulator build on macOS.
-This Linux workspace cannot run Xcode or an iOS Simulator.
-
-Before release, run on an iPhone simulator/device:
-
-- Fresh install: all four screens; back preserves choices; account skip works.
-- Referral: empty input, exact code, name filtering, tap selection, clear, skip,
-  long/invalid input, no matches, offline retry, and an empty approved directory.
-- Choose light, another language, Privacy Mode on; confirm the first website
-  search and native toolbar use the settings. Relaunch: no repeated onboarding.
-- Change Settings later; confirm website values are merged without losing other
-  config. Follow an external link and confirm no Savedd storage is injected there.
-- Verify first-touch attribution remains unchanged when one already exists.
-- Test SE-sized screens, landscape, iPad, keyboard, VoiceOver, accessibility text
-  sizes, and Reduce Motion. Keep primary/skip buttons reachable while scrolling.
-- After email integration: real signup, cancel/failure/retry, existing-user login,
-  and actual server-side preference save/recovery across devices.
+On a phone: choose a partner, continue with email, request a real email, tap the link
+in Mail/Safari, choose Open Savedd, and confirm sign-in in Savedd. Repeat with the
+app closed, an expired link, password sign-in/recovery, and optional email code.
+Confirm the account keeps its first referrer and that skipping accounts still works.
+No real emails or test accounts are created by automated checks.
