@@ -37,8 +37,8 @@ For requests started by that page, the website uses
 `https://www.savedd.com/auth/ios-callback` as the email redirect. This HTTPS page
 forwards only the PKCE `code` to the fixed `savedd://auth/callback?code=…` app URL.
 It deliberately disables Supabase URL-session consumption on that intermediate
-page so Safari cannot consume a callback intended for the app. It also shows an
-explicit Open Savedd button if automatic app opening is blocked.
+page so Safari cannot consume a callback intended for the app. It shows an
+explicit Open Savedd button so browsers launch the app through a user gesture.
 
 The app registers `savedd` in Info.plist, accepts only the exact auth callback
 shape, and loads `https://www.savedd.com/?code=…` in its persistent WKWebView.
