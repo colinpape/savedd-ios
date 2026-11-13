@@ -124,7 +124,7 @@ struct OnboardingView: View {
                             switch step {
                             case 1: PartnerPicker(directory: directory)
                             case 2: SaveddPreferencesForm()
-                            case 3: ProverbReminderSetup(showActions: false)
+                            case 3: ProverbReminderSetup(showActions: false, usesStaticExample: true)
                             default: account
                             }
                         }
