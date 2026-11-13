@@ -2,6 +2,8 @@
 
 Onboarding now offers an optional reminder between preferences and account creation. Nothing asks iOS for permission until the person taps **Enable daily reminder**. Default: 8 a.m. local time. **Maybe later** continues setup. Settings includes reminder controls and today's reading for existing users.
 
+Onboarding always illustrates the reminder with Proverbs 18:15, labeled as an example. Settings previews, readings, and actual notifications continue to follow the day of the month.
+
 The World English Bible (WEB) is public domain and uses modern English. All 31 chapters (915 verses) are bundled from https://bible-api.com/ using its `translation=web` Proverbs endpoints. Each chapter has one selected verse and a separately labeled Savedd reflection. These passages and reflections repeat monthly. Scripture is kept verbatim apart from whitespace normalization. No content is generated at notification delivery time. No account, server, or push entitlement is required.
 
 There are 58 local notification requests: monthly repeats for days 1–28, yearly repeats for valid months on days 29–31, and the next February 29 as a one-time request refreshed on app activation. This avoids iOS rolling nonexistent dates into the next month while staying below the 64-request limit. Dates and chosen local hour/minute use the Gregorian calendar. Tapping a notification opens its chapter, including older notifications from a different day. Full readings work offline; Explore uses Savedd search. iOS Focus, notification settings, and scheduled summaries can affect when alerts appear. Reminder settings stay on the device and are separate from website preferences.

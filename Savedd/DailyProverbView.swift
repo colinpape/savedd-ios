@@ -4,22 +4,28 @@ struct ProverbReminderSetup: View {
     @EnvironmentObject private var reminders: ProverbReminders
     @Environment(\.openURL) private var openURL
     var showActions = true
+    var usesStaticExample = false
     private var chapter: ProverbChapter? {
-        ProverbLibrary.bundled?.chapters.first { $0.day == ProverbLibrary.day() }
+        ProverbLibrary.bundled?.chapters.first { $0.day == (usesStaticExample ? 18 : ProverbLibrary.day()) }
+    }
+    private var previewVerse: ProverbChapter.Verse? {
+        guard let chapter else { return nil }
+        let number = usesStaticExample ? 15 : chapter.highlightVerse
+        return chapter.verses.first { $0.number == number }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            if let chapter {
+            if let chapter, let previewVerse {
                 VStack(alignment: .leading, spacing: 14) {
                     Label("DAILY PROVERB", systemImage: "sun.max")
                         .font(.caption.weight(.semibold)).tracking(2).foregroundStyle(SaveddBrand.gold)
-                    Text("“\(chapter.highlight)”")
+                    Text("“\(previewVerse.text)”")
                         .font(.system(.title3, design: .serif))
                         .fixedSize(horizontal: false, vertical: true)
-                    Text("\(chapter.reference) · World English Bible")
+                    Text("Proverbs \(chapter.day):\(previewVerse.number) · World English Bible")
                         .font(.caption).foregroundStyle(SaveddBrand.muted)
-                    Text("Notification preview · Today’s chapter")
+                    Text(usesStaticExample ? "Example notification · A new chapter each day" : "Notification preview · Today’s chapter")
                         .font(.caption2).foregroundStyle(SaveddBrand.muted)
                 }
                 .padding(20)
