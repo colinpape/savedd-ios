@@ -1,0 +1,104 @@
+package com.savedd.browser
+
+import android.Manifest
+import android.app.Notification
+import android.app.NotificationManager
+import android.os.Build
+import android.view.View
+import android.view.ViewGroup
+import android.webkit.WebView
+import androidx.test.core.app.ActivityScenario
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.*
+import org.junit.Assert.*
+import org.junit.Test
+import org.junit.runner.RunWith
+import java.io.File
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.regex.Pattern
+
+@RunWith(AndroidJUnit4::class)
+class OnboardingDeviceTest {
+    private val device=UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+    private val context=InstrumentationRegistry.getInstrumentation().targetContext
+    private fun text(value:String)=By.text(value)
+    private fun click(selector:BySelector) {
+        assertTrue("Missing control: $selector",device.wait(Until.hasObject(selector),15_000))
+        device.findObject(selector).click();device.waitForIdle()
+    }
+    private fun screenshot(name:String) {
+        val folder=File(context.getExternalFilesDir(null),"screenshots").also {it.mkdirs()}
+        assertTrue(device.takeScreenshot(File(folder,"$name.png")))
+    }
+    private fun web(root:View):WebView? {
+        if(root is WebView && root.visibility==View.VISIBLE)return root
+        if(root is ViewGroup)for(i in 0 until root.childCount)web(root.getChildAt(i))?.let {return it}
+        return null
+    }
+    private fun evaluate(scenario:ActivityScenario<MainActivity>,script:String):String {
+        val latch=CountDownLatch(1);var result=""
+        scenario.onActivity {activity -> web(activity.window.decorView)!!.evaluateJavascript(script) { result=it;latch.countDown() } }
+        assertTrue("WebView script timed out",latch.await(15,TimeUnit.SECONDS));return result
+    }
+    private fun waitFor(scenario:ActivityScenario<MainActivity>,expression:String) {
+        repeat(200) { if(evaluate(scenario,expression)=="true")return;Thread.sleep(100) }
+        fail("WebView assertion timed out: $expression")
+    }
+    @Test fun firstRunAndBrowserNavigationStayConsistent() {
+        context.getSharedPreferences("savedd.native.v1",0).edit().clear().commit()
+        ActivityScenario.launch(MainActivity::class.java).use {scenario ->
+            assertTrue(device.wait(Until.hasObject(text("Get started")),15_000))
+            screenshot("01-welcome")
+            click(text("Get started"));screenshot("02-referral")
+            click(text("Skip for now"));screenshot("03-preferences")
+            click(text("Continue"))
+            assertTrue(device.wait(Until.hasObject(By.textContains("Proverbs 18:15")),10_000))
+            screenshot("04-daily-proverb")
+            click(text("Maybe later"));screenshot("05-account")
+            click(text("Continue without an account"))
+            assertTrue(device.wait(Until.hasObject(By.desc("Settings")),15_000))
+            // Cancel the network homepage and exercise a real WebView History API form.
+            val fixture="""<html><head><meta name="viewport" content="width=device-width"><title>Navigation fixture</title></head><body><form onsubmit="event.preventDefault();history.pushState({},'', '?q=coffee');document.getElementById('result').textContent='Results: coffee'"><input value="coffee"><button>Search</button></form><h1 id="result">Home</h1></body></html>"""
+            scenario.onActivity { activity -> web(activity.window.decorView)!!.apply {stopLoading();loadDataWithBaseURL("https://navigation.example.test/",fixture,"text/html","UTF-8",null)} }
+            waitFor(scenario,"document.title === 'Navigation fixture'")
+            if(device.hasObject(text("OK")))click(text("OK"))
+            scenario.onActivity {activity -> web(activity.window.decorView)!!.clearHistory()}
+            evaluate(scenario,"document.querySelector('button').click(); true")
+            waitFor(scenario,"location.search === '?q=coffee' && document.getElementById('result').textContent === 'Results: coffee'")
+            click(By.desc("Settings"));click(text("Light"));screenshot("06-settings-light")
+            click(text("Read today’s proverb"));screenshot("07-reading")
+            val read=By.text(Pattern.compile("Read Proverbs [0-9]+"))
+            repeat(4) { if(!device.hasObject(read))device.findObject(By.scrollable(true))?.scroll(Direction.DOWN,.6f) }
+            click(read);assertTrue(device.wait(Until.hasObject(text("Hide full chapter")),5_000))
+            click(By.desc("Close Daily Proverb"));click(By.desc("Close Settings"))
+            waitFor(scenario,"location.search === '?q=coffee' && document.getElementById('result').textContent === 'Results: coffee'")
+            scenario.onActivity {activity -> assertEquals("A redraw added an unwanted navigation",2,web(activity.window.decorView)!!.copyBackForwardList().size) }
+            click(By.desc("Share page"));click(text("Add bookmark"));click(text("Save bookmark"))
+            click(By.desc("Bookmarks"));assertTrue(device.wait(Until.hasObject(text("Navigation fixture")),5_000));screenshot("08-bookmarks")
+            click(By.desc("Close Bookmarks"))
+            click(By.desc("Tabs"));screenshot("09-tabs");click(By.desc("New tab"))
+            if(device.hasObject(text("OK")))click(text("OK"))
+            click(text("www.savedd.com"))
+            assertTrue(device.wait(Until.hasObject(By.desc("Search or enter address")),5_000))
+            assertEquals("New-tab address field must start blank","",device.findObject(By.desc("Search or enter address")).text)
+            screenshot("10-keyboard-address")
+            device.pressBack()
+            if(Build.VERSION.SDK_INT>=33)InstrumentationRegistry.getInstrumentation().uiAutomation.grantRuntimePermission(context.packageName,Manifest.permission.POST_NOTIFICATIONS)
+            val store=AppStore(context)
+            store.preferences=store.preferences.copy(reminders=true)
+            ProverbReminders.schedule(context)
+            ProverbReminders.deliver(context)
+            val notifications=context.getSystemService(NotificationManager::class.java).activeNotifications
+            assertEquals(1,notifications.size)
+            assertEquals("Savedd Daily Proverb",notifications[0].notification.extras.getString(Notification.EXTRA_TITLE))
+            val day=java.time.LocalDate.now().dayOfMonth
+            assertTrue(notifications[0].notification.extras.getCharSequence(Notification.EXTRA_TEXT).toString().contains("Proverbs $day:"))
+            notifications[0].notification.contentIntent.send()
+            assertTrue(device.wait(Until.hasObject(By.desc("Close Daily Proverb")),10_000))
+            assertTrue(device.hasObject(text("PROVERBS $day")))
+            screenshot("11-notification-reading")
+        }
+    }
+}
