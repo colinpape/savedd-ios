@@ -10,3 +10,7 @@ The app includes first-run onboarding, optional partner referrals, local appeara
 - [TestFlight setup, upload, and installation](TESTFLIGHT.md)
 
 CI checks the database partner directory, email callback routing, and website preference handoff, builds the simulator app, captures onboarding screens, and checks an unsigned Release archive for a generic iOS device. CI does not sign or upload to Apple.
+
+## Android
+
+The native Android project is in [android/](android/README.md). It uses Kotlin and Jetpack Compose, shares the offline Proverbs content with iOS, and connects to the same website authentication and database referral API. See [ANDROID_PLAN.md](ANDROID_PLAN.md) for the implementation and device-check plan. Android CI publishes an installable debug APK artifact; no Google Play account is needed to try it.

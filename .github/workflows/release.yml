@@ -1,8 +1,10 @@
 name: Release archive check
 on:
   pull_request:
+    paths-ignore: ['android/**', '**/*.md', '.github/workflows/android.yml']
   push:
     branches: [main]
+    paths-ignore: ['android/**', '**/*.md', '.github/workflows/android.yml']
   workflow_dispatch:
 permissions:
   contents: read
