@@ -48,6 +48,9 @@ class OnboardingDeviceTest {
         assertTrue(device.takeScreenshot(image))
         device.executeShellCommand("mkdir -p /sdcard/Download/savedd-device-screenshots")
         device.executeShellCommand("cp ${image.absolutePath} /sdcard/Download/savedd-device-screenshots/$name.png")
+        val hierarchy=File(folder,"$name.xml")
+        device.dumpWindowHierarchy(hierarchy)
+        device.executeShellCommand("cp ${hierarchy.absolutePath} /sdcard/Download/savedd-device-screenshots/$name.xml")
     }
     @After fun captureFinalState() {
         runCatching {
@@ -125,14 +128,22 @@ class OnboardingDeviceTest {
             if(device.hasObject(text("OK")))click(text("OK"))
             click(text("www.savedd.com"))
             assertTrue(device.wait(Until.hasObject(By.desc("Search or enter address")),5_000))
+            val address=device.wait(Until.findObject(By.clazz("android.widget.EditText").focused(true)),10_000)
+            assertNotNull("The actual address editor must receive focus",address)
+            assertEquals("New-tab address field must start blank","",address!!.text.orEmpty())
+            address.text="coffee"
+            assertEquals("Typed text must remain visible","coffee",device.findObject(By.clazz("android.widget.EditText").focused(true)).text)
             screenshot("10-keyboard-address")
-            val address=device.findObject(By.desc("Search or enter address"))
-            assertEquals("Address control must be editable","android.widget.EditText",address.className)
-            assertEquals("New-tab address field must start blank","",address.text.orEmpty())
             device.pressBack()
+        }
+    }
+    @Test fun notificationOpensTheMatchingOfflineReading() {
+        context.getSharedPreferences("savedd.native.v1",0).edit().clear().commit()
+        context.getSystemService(NotificationManager::class.java).cancelAll()
+        AppStore(context).preferences=Preferences(reminders=true)
+        ActivityScenario.launch(MainActivity::class.java).use {
+            assertTrue(device.wait(Until.hasObject(text("Get started")),15_000))
             if(Build.VERSION.SDK_INT>=33)InstrumentationRegistry.getInstrumentation().uiAutomation.grantRuntimePermission(context.packageName,Manifest.permission.POST_NOTIFICATIONS)
-            val store=AppStore(context)
-            store.preferences=store.preferences.copy(reminders=true)
             ProverbReminders.schedule(context)
             ProverbReminders.deliver(context)
             val notifications=context.getSystemService(NotificationManager::class.java).activeNotifications
