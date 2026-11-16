@@ -141,7 +141,9 @@ class OnboardingDeviceTest {
         context.getSharedPreferences("savedd.native.v1",0).edit().clear().commit()
         context.getSystemService(NotificationManager::class.java).cancelAll()
         AppStore(context).preferences=Preferences(reminders=true)
-        ActivityScenario.launch(MainActivity::class.java).use {
+        // Match the notification's explicit intent so ActivityScenario continues
+        // observing lifecycle events after MainActivity.setIntent(onNewIntent).
+        ActivityScenario.launch<MainActivity>(android.content.Intent(context,MainActivity::class.java)).use {
             assertTrue(device.wait(Until.hasObject(text("Get started")),15_000))
             if(Build.VERSION.SDK_INT>=33)InstrumentationRegistry.getInstrumentation().uiAutomation.grantRuntimePermission(context.packageName,Manifest.permission.POST_NOTIFICATIONS)
             val permissionDeadline=android.os.SystemClock.elapsedRealtime()+5_000
