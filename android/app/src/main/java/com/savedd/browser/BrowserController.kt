@@ -139,7 +139,9 @@ class BrowserController(val activity:Activity,val scope:CoroutineScope) {
         tab.web?.let { return it }
         val web=WebView(activity)
         tab.web=web
-        web.setBackgroundColor(if(prefs.dark)android.graphics.Color.rgb(18,16,26) else android.graphics.Color.WHITE)
+        // Keep the normal HTML canvas white: unstyled pages use black text.
+        // Savedd and other sites paint their own light/dark backgrounds with CSS.
+        web.setBackgroundColor(android.graphics.Color.WHITE)
         web.settings.apply {
             javaScriptEnabled=true;domStorageEnabled=true
             allowFileAccess=false;allowContentAccess=true
