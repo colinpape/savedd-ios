@@ -144,10 +144,20 @@ class OnboardingDeviceTest {
         ActivityScenario.launch(MainActivity::class.java).use {
             assertTrue(device.wait(Until.hasObject(text("Get started")),15_000))
             if(Build.VERSION.SDK_INT>=33)InstrumentationRegistry.getInstrumentation().uiAutomation.grantRuntimePermission(context.packageName,Manifest.permission.POST_NOTIFICATIONS)
+            val permissionDeadline=android.os.SystemClock.elapsedRealtime()+5_000
+            while(!ProverbReminders.allowed(context) && android.os.SystemClock.elapsedRealtime()<permissionDeadline)Thread.sleep(100)
+            assertTrue("Notification permission must be active",ProverbReminders.allowed(context))
+            assertTrue("The reminder opt-in must persist",AppStore(context).preferences.reminders)
             ProverbReminders.schedule(context)
             ProverbReminders.deliver(context)
-            val notifications=context.getSystemService(NotificationManager::class.java).activeNotifications
-            assertEquals(1,notifications.size)
+            val manager=context.getSystemService(NotificationManager::class.java)
+            val deadline=android.os.SystemClock.elapsedRealtime()+10_000
+            var notifications=manager.activeNotifications
+            while(notifications.isEmpty() && android.os.SystemClock.elapsedRealtime()<deadline) {
+                Thread.sleep(100)
+                notifications=manager.activeNotifications
+            }
+            assertEquals("Notification post: last day=${AppStore(context).lastProverbDay}, channel=${manager.getNotificationChannel(ProverbReminders.CHANNEL)?.importance}",1,notifications.size)
             assertEquals("Savedd Daily Proverb",notifications[0].notification.extras.getString(Notification.EXTRA_TITLE))
             val day=java.time.LocalDate.now().dayOfMonth
             assertTrue(notifications[0].notification.extras.getCharSequence(Notification.EXTRA_TEXT).toString().contains("Proverbs $day:"))
