@@ -6,7 +6,7 @@ import android.app.NotificationManager
 import android.os.Build
 import android.view.View
 import android.view.ViewGroup
-import android.webkit.WebView
+import android.webkit.*
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -86,7 +86,22 @@ class OnboardingDeviceTest {
             assertTrue(device.wait(Until.hasObject(By.desc("Settings")),15_000))
             // Cancel the network homepage and exercise a real WebView History API form.
             val fixture="""<html><head><meta name="viewport" content="width=device-width"><title>Navigation fixture</title></head><body><form onsubmit="event.preventDefault();history.pushState({},'', '?q=coffee');document.getElementById('result').textContent='Results: coffee'"><input value="coffee"><button>Search</button></form><h1 id="result">Home</h1></body></html>"""
-            scenario.onActivity { activity -> web(activity.window.decorView)!!.apply {stopLoading();loadDataWithBaseURL("https://navigation.example.test/",fixture,"text/html","UTF-8","https://navigation.example.test/")} }
+            scenario.onActivity { activity -> web(activity.window.decorView)!!.apply {
+                stopLoading()
+                val realClient=webViewClient
+                webViewClient=object:WebViewClient() {
+                    override fun shouldInterceptRequest(view:WebView,request:WebResourceRequest):WebResourceResponse? =
+                        if(request.isForMainFrame && request.url.host=="navigation.example.test")
+                            WebResourceResponse("text/html","UTF-8",fixture.byteInputStream())
+                        else realClient.shouldInterceptRequest(view,request)
+                    override fun onPageStarted(view:WebView,url:String?,icon:android.graphics.Bitmap?)=realClient.onPageStarted(view,url,icon)
+                    override fun onPageFinished(view:WebView,url:String?)=realClient.onPageFinished(view,url)
+                    override fun doUpdateVisitedHistory(view:WebView,url:String?,reload:Boolean)=realClient.doUpdateVisitedHistory(view,url,reload)
+                    override fun onReceivedError(view:WebView,request:WebResourceRequest,error:WebResourceError)=realClient.onReceivedError(view,request,error)
+                    override fun shouldOverrideUrlLoading(view:WebView,request:WebResourceRequest)=realClient.shouldOverrideUrlLoading(view,request)
+                }
+                loadUrl("https://navigation.example.test/")
+            } }
             waitFor(scenario,"document.title === 'Navigation fixture'")
             if(device.hasObject(text("OK")))click(text("OK"))
             scenario.onActivity {activity -> web(activity.window.decorView)!!.clearHistory()}
