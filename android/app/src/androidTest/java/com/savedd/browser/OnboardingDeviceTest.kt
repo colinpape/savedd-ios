@@ -13,6 +13,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.*
 import org.junit.Assert.*
 import org.junit.Test
+import org.junit.After
 import org.junit.runner.RunWith
 import java.io.File
 import java.util.concurrent.CountDownLatch
@@ -25,12 +26,36 @@ class OnboardingDeviceTest {
     private val context=InstrumentationRegistry.getInstrumentation().targetContext
     private fun text(value:String)=By.text(value)
     private fun click(selector:BySelector) {
-        assertTrue("Missing control: $selector",device.wait(Until.hasObject(selector),15_000))
-        device.findObject(selector).click();device.waitForIdle()
+        repeat(5) {
+            try {
+                val node=device.wait(Until.findObject(selector),15_000)
+                assertNotNull("Missing control: $selector",node)
+                val bounds=node!!.visibleBounds
+                assertTrue("Control is outside the viewport: $selector",!bounds.isEmpty)
+                device.click(bounds.centerX(),bounds.centerY())
+                device.waitForIdle()
+                return
+            } catch (_:StaleObjectException) {
+                // Compose can replace a semantics node between discovery and a tap.
+                device.waitForIdle()
+            }
+        }
+        fail("Control did not stabilize: $selector")
     }
     private fun screenshot(name:String) {
         val folder=File(context.getExternalFilesDir(null),"screenshots").also {it.mkdirs()}
-        assertTrue(device.takeScreenshot(File(folder,"$name.png")))
+        val image=File(folder,"$name.png")
+        assertTrue(device.takeScreenshot(image))
+        device.executeShellCommand("mkdir -p /sdcard/Download/savedd-device-screenshots")
+        device.executeShellCommand("cp ${image.absolutePath} /sdcard/Download/savedd-device-screenshots/$name.png")
+    }
+    @After fun captureFinalState() {
+        runCatching {
+            screenshot("99-final-state")
+            val hierarchy=File(context.getExternalFilesDir(null),"hierarchy.xml")
+            device.dumpWindowHierarchy(hierarchy)
+            device.executeShellCommand("cp ${hierarchy.absolutePath} /sdcard/Download/savedd-device-screenshots/hierarchy.xml")
+        }
     }
     private fun web(root:View):WebView? {
         if(root is WebView && root.visibility==View.VISIBLE)return root

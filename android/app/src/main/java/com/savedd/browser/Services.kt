@@ -138,7 +138,13 @@ class IconCache(context:Context) {
         candidates += key+"favicon.ico"
         for(url in candidates.distinct()) {
             val data=bytes(url,1_000_000) ?: continue
-            val image=BitmapFactory.decodeByteArray(data,0,data.size) ?: continue
+            val bounds=BitmapFactory.Options().apply { inJustDecodeBounds=true }
+            BitmapFactory.decodeByteArray(data,0,data.size,bounds)
+            if(bounds.outWidth !in 1..16384 || bounds.outHeight !in 1..16384)continue
+            var sample=1
+            while(maxOf(bounds.outWidth,bounds.outHeight)/sample>128)sample*=2
+            val options=BitmapFactory.Options().apply { inSampleSize=sample }
+            val image=BitmapFactory.decodeByteArray(data,0,data.size,options) ?: continue
             save(key,image);return images.get(key)
         }
         unavailable[key]=System.currentTimeMillis()+600_000
