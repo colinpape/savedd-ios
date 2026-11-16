@@ -29,7 +29,7 @@ class OnboardingDeviceTest {
         repeat(5) {
             try {
                 val node=device.wait(Until.findObject(selector),15_000)
-                assertNotNull("Missing control: $selector",node)
+                if(node==null) { screenshot("98-missing-control");fail("Missing control: $selector") }
                 val bounds=node!!.visibleBounds
                 assertTrue("Control is outside the viewport: $selector",!bounds.isEmpty)
                 device.click(bounds.centerX(),bounds.centerY())
@@ -86,7 +86,7 @@ class OnboardingDeviceTest {
             assertTrue(device.wait(Until.hasObject(By.desc("Settings")),15_000))
             // Cancel the network homepage and exercise a real WebView History API form.
             val fixture="""<html><head><meta name="viewport" content="width=device-width"><title>Navigation fixture</title></head><body><form onsubmit="event.preventDefault();history.pushState({},'', '?q=coffee');document.getElementById('result').textContent='Results: coffee'"><input value="coffee"><button>Search</button></form><h1 id="result">Home</h1></body></html>"""
-            scenario.onActivity { activity -> web(activity.window.decorView)!!.apply {stopLoading();loadDataWithBaseURL("https://navigation.example.test/",fixture,"text/html","UTF-8",null)} }
+            scenario.onActivity { activity -> web(activity.window.decorView)!!.apply {stopLoading();loadDataWithBaseURL("https://navigation.example.test/",fixture,"text/html","UTF-8","https://navigation.example.test/")} }
             waitFor(scenario,"document.title === 'Navigation fixture'")
             if(device.hasObject(text("OK")))click(text("OK"))
             scenario.onActivity {activity -> web(activity.window.decorView)!!.clearHistory()}
@@ -100,7 +100,10 @@ class OnboardingDeviceTest {
             click(By.desc("Close Daily Proverb"));click(By.desc("Close Settings"))
             waitFor(scenario,"location.search === '?q=coffee' && document.getElementById('result').textContent === 'Results: coffee'")
             scenario.onActivity {activity -> assertEquals("A redraw added an unwanted navigation",2,web(activity.window.decorView)!!.copyBackForwardList().size) }
-            click(By.desc("Share page"));click(text("Add bookmark"));click(text("Save bookmark"))
+            scenario.onActivity { activity -> assertTrue("Fixture must have a bookmarkable HTTPS history URL",web(activity.window.decorView)!!.url.orEmpty().startsWith("https://navigation.example.test/")) }
+            click(By.desc("Share page"));click(text("Add bookmark"));screenshot("08-bookmark-editor")
+            assertTrue("Bookmark save must be enabled",device.findObject(text("Save bookmark")).isEnabled)
+            click(text("Save bookmark"))
             click(By.desc("Bookmarks"));assertTrue(device.wait(Until.hasObject(text("Navigation fixture")),5_000));screenshot("08-bookmarks")
             click(By.desc("Close Bookmarks"))
             click(By.desc("Tabs"));screenshot("09-tabs");click(By.desc("New tab"))
