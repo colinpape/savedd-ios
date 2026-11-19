@@ -127,19 +127,22 @@ class HorizontalScrollDeviceTest {
             // This external smoke test may skip if SRF is unavailable or changes its markup.
             // The controlled overflow cases above remain mandatory and offline.
             assumeTrue("SRF forecast is unavailable; controlled swipe tests still apply",ready)
-            evaluate(scenario,"document.querySelector('$selector').scrollIntoView({block:'center'}); true")
-            Thread.sleep(700)
-            val before=JSONObject(evaluate(scenario,"(()=>{const e=document.querySelector('$selector'),r=e.getBoundingClientRect();return {x:e.scrollLeft,y:r.top+r.height/2-visualViewport.offsetTop,width:visualViewport.width,pageX:visualViewport.pageLeft}})()"))
+            Thread.sleep(2000)
+            evaluate(scenario,"document.querySelector('$selector').scrollIntoView({block:'center',behavior:'instant'}); true")
+            Thread.sleep(1500)
+            screenshot("srf-forecast-before-swipe")
+            val before=JSONObject(evaluate(scenario,"(()=>{const e=document.querySelector('$selector'),r=e.getBoundingClientRect();const y=r.top+r.height*.4-visualViewport.offsetTop,hit=document.elementFromPoint(visualViewport.width*.8,y);window.__swipeTrace=[];for(const type of ['touchstart','touchmove','touchend','pointerdown','pointercancel'])window.addEventListener(type,ev=>{if(window.__swipeTrace.length<12)window.__swipeTrace.push({type,target:ev.target.tagName,classes:ev.target.className?.baseVal??ev.target.className,inForecast:e.contains(ev.target)})},{capture:true,passive:true});return {x:e.scrollLeft,y,width:visualViewport.width,pageX:visualViewport.pageLeft,viewportY:visualViewport.offsetTop,rectTop:r.top,rectHeight:r.height,hit:hit?.tagName,hitInForecast:e.contains(hit)}})()"))
             var x=0;var y=0;var width=0
             scenario.onActivity {activity -> web(activity.window.decorView)!!.let {view ->
                 val location=IntArray(2);view.getLocationOnScreen(location)
                 x=location[0];width=view.width;y=location[1]+(before.getDouble("y")*width/before.getDouble("width")).toInt()
             } }
-            screenshot("srf-forecast-before-swipe")
+            println("SRF_GEOMETRY before=$before nativeX=$x nativeY=$y nativeWidth=$width")
+            assertTrue("The touch target must be inside the forecast",before.getBoolean("hitInForecast"))
             assertTrue(device.swipe(x+width*4/5,y,x+width/5,y,35))
             Thread.sleep(700)
             val after=evaluate(scenario,"document.querySelector('$selector').scrollLeft").toDouble()
-            println("SRF_FINGER_SWIPE before=${before.getDouble("x")} after=$after")
+            println("SRF_FINGER_SWIPE before=${before.getDouble("x")} after=$after trace=${evaluate(scenario,"window.__swipeTrace")}")
             screenshot("srf-forecast-after-swipe")
             assertTrue("The SRF forecast must reveal later days after a finger swipe",after>before.getDouble("x")+20)
         }
