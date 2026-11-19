@@ -132,6 +132,8 @@ class HorizontalScrollDeviceTest {
             // This external smoke test may skip if SRF is unavailable or changes its markup.
             // The controlled overflow cases above remain mandatory and offline.
             assumeTrue("SRF forecast is unavailable; controlled swipe tests still apply",ready)
+            println("SRF_SHADOW " + evaluate(scenario,"Array.from(document.querySelectorAll('aside')).map(e=>({id:e.id,shadow:e.shadowRoot?.innerHTML.slice(0,20000),buttons:Array.from(e.shadowRoot?.querySelectorAll('button')??[]).map(b=>({text:b.innerText,rect:b.getBoundingClientRect().toJSON(),display:getComputedStyle(b).display,visibility:getComputedStyle(b).visibility}))}))"))
+            screenshot("srf-before-consent")
             val consent=device.wait(Until.findObject(By.textContains("Nur Notwendige")),8_000)
             if(consent!=null) {
                 val bounds=consent.visibleBounds

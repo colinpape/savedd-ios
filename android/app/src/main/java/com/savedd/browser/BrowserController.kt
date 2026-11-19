@@ -144,8 +144,6 @@ class BrowserController(val activity:Activity,val scope:CoroutineScope) {
         web.setBackgroundColor(android.graphics.Color.WHITE)
         web.settings.apply {
             javaScriptEnabled=true;domStorageEnabled=true
-            // Honor responsive viewport metadata, including fixed-position consent dialogs.
-            useWideViewPort=true;loadWithOverviewMode=true
             allowFileAccess=false;allowContentAccess=true
             mixedContentMode=WebSettings.MIXED_CONTENT_NEVER_ALLOW
             setSupportMultipleWindows(true);javaScriptCanOpenWindowsAutomatically=false
