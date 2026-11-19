@@ -153,7 +153,8 @@ class HorizontalScrollDeviceTest {
             } }
             println("SRF_GEOMETRY before=$before nativeX=$x nativeY=$y nativeWidth=$width")
             if(!before.getBoolean("hitInForecast")) {
-                println("SRF_OVERLAYS ${evaluate(scenario,"Array.from(document.querySelectorAll('aside')).map(e=>({classes:e.className,text:e.innerText,rect:e.getBoundingClientRect().toJSON(),frames:Array.from(e.querySelectorAll('iframe')).map(f=>({src:f.src,rect:f.getBoundingClientRect().toJSON()}))}))")}
+                val overlays=evaluate(scenario,"Array.from(document.querySelectorAll('aside')).map(e=>({classes:e.className,text:e.innerText,rect:e.getBoundingClientRect().toJSON(),frames:Array.from(e.querySelectorAll('iframe')).map(f=>({src:f.src,rect:f.getBoundingClientRect().toJSON()}))}))")
+                println("SRF_OVERLAYS $overlays")
             }
             assertTrue(device.swipe(x+width*4/5,y,x+width/5,y,35))
             Thread.sleep(700)
