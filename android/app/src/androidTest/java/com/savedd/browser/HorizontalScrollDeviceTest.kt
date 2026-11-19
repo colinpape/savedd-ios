@@ -10,6 +10,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiDevice
 import org.json.JSONObject
 import org.junit.Assert.*
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
@@ -49,11 +50,10 @@ class HorizontalScrollDeviceTest {
         ${(1..6).joinToString("") {"<div class='day'>Day $it<br><br>☁<br><br>6° | 11°<br>19 mm</div>"}}
         </div></div><div id="below">Vertical page scrolling must still work.</div></body></html>""".trimIndent()
 
-    private fun runCase(scenario:ActivityScenario<MainActivity>,nested:Boolean,wide:Boolean,overview:Boolean):Boolean {
+    private fun runCase(scenario:ActivityScenario<MainActivity>,nested:Boolean) {
         val html=fixture(nested)
         scenario.onActivity {activity -> web(activity.window.decorView)!!.apply {
             stopLoading()
-            settings.useWideViewPort=wide;settings.loadWithOverviewMode=overview
             val original=webViewClient
             webViewClient=object:WebViewClient() {
                 override fun shouldInterceptRequest(view:WebView,request:WebResourceRequest):WebResourceResponse? =
@@ -64,7 +64,7 @@ class HorizontalScrollDeviceTest {
                 override fun doUpdateVisitedHistory(view:WebView,url:String?,reload:Boolean)=original.doUpdateVisitedHistory(view,url,reload)
                 override fun onReceivedError(view:WebView,request:WebResourceRequest,error:WebResourceError)=original.onReceivedError(view,request,error)
             }
-            loadUrl("https://scroll.example.test/${if(nested)"nested" else "page"}/$wide/$overview")
+            loadUrl("https://scroll.example.test/${if(nested)"nested" else "page"}")
         } }
         var loaded=false
         repeat(100) {
@@ -75,7 +75,7 @@ class HorizontalScrollDeviceTest {
         }
         assertTrue("The forecast fixture must load",loaded)
         Thread.sleep(300)
-        fun metrics():JSONObject=JSONObject(evaluate(scenario,"""({width:innerWidth,documentWidth:document.documentElement.scrollWidth,pageX:scrollX,pageY:scrollY,stripX:document.getElementById('forecast').scrollLeft,stripWidth:document.getElementById('forecast').clientWidth,stripContentWidth:document.getElementById('forecast').scrollWidth})"""))
+        fun metrics():JSONObject=JSONObject(evaluate(scenario,"""({width:visualViewport.width,layoutWidth:innerWidth,documentWidth:document.documentElement.scrollWidth,pageX:visualViewport.pageLeft,pageY:visualViewport.pageTop,stripX:document.getElementById('forecast').scrollLeft,stripWidth:document.getElementById('forecast').clientWidth,stripContentWidth:document.getElementById('forecast').scrollWidth})"""))
         val before=metrics()
         var left=0;var top=0;var width=0;var height=0
         scenario.onActivity {activity -> web(activity.window.decorView)!!.let {view ->
@@ -88,22 +88,61 @@ class HorizontalScrollDeviceTest {
         Thread.sleep(500)
         val after=metrics()
         val moved=if(nested)after.getDouble("stripX")>before.getDouble("stripX")+20 else after.getDouble("pageX")>before.getDouble("pageX")+20
-        println("HORIZONTAL_SCROLL nested=$nested wide=$wide overview=$overview moved=$moved before=$before after=$after")
-        screenshot("scroll-${if(nested)"nested" else "page"}-$wide-$overview")
-        return moved
+        println("HORIZONTAL_SCROLL nested=$nested moved=$moved before=$before after=$after")
+        screenshot("scroll-${if(nested)"nested" else "page"}-later-days")
+        assertTrue("A finger swipe must reveal later forecast columns (nested=$nested)",moved)
+        assertTrue(device.swipe(left+width/5,y,left+width*4/5,y,35))
+        Thread.sleep(500)
+        val reversed=metrics()
+        assertTrue("The forecast must scroll back in the opposite direction",if(nested)reversed.getDouble("stripX")<after.getDouble("stripX")-20 else reversed.getDouble("pageX")<after.getDouble("pageX")-20)
+        assertTrue(device.swipe(left+width/2,top+height*4/5,left+width/2,top+height*2/5,35))
+        Thread.sleep(500)
+        assertTrue("Vertical page scrolling must still work",metrics().getDouble("pageY")>20)
     }
 
-    @Test fun compareViewportSettingsWithRealSwipes() {
+    @Test fun fullPageAndNestedOverflowSupportBothSwipeDirections() {
         context.getSharedPreferences("savedd.native.v1",0).edit().clear().commit()
         AppStore(context).preferences=Preferences(complete=true)
         ActivityScenario.launch(MainActivity::class.java).use {scenario ->
-            val candidateResults=mutableListOf<Boolean>()
-            for(nested in listOf(false,true)) {
-                runCase(scenario,nested,wide=false,overview=false)
-                candidateResults+=runCase(scenario,nested,wide=true,overview=false)
-                runCase(scenario,nested,wide=true,overview=true)
-            }
-            assertTrue("Wide viewport must allow both full-page and nested horizontal panning",candidateResults.all {it})
+            runCase(scenario,nested=false)
+            runCase(scenario,nested=true)
         }
     }
+    @Test fun liveSrfForecastSupportsHorizontalTouchScrolling() {
+        context.getSharedPreferences("savedd.native.v1",0).edit().clear().commit()
+        AppStore(context).preferences=Preferences(complete=true)
+        ActivityScenario.launch(MainActivity::class.java).use {scenario ->
+            scenario.onActivity {activity -> web(activity.window.decorView)!!.apply {
+                stopLoading()
+                println("SRF_WEBVIEW version=${WebView.getCurrentWebViewPackage()?.versionName} wide=${settings.useWideViewPort} overview=${settings.loadWithOverviewMode}")
+                loadUrl("https://www.srf.ch/meteo/wetter/Bern/46.9471,7.4441")
+            } }
+            val selector="ul[class*=\"m:font-light\"]"
+            val deadline=android.os.SystemClock.elapsedRealtime()+45_000
+            var ready=false
+            while(!ready&&android.os.SystemClock.elapsedRealtime()<deadline) {
+                ready=evaluate(scenario,"document.querySelector('$selector')?.scrollWidth > document.querySelector('$selector')?.clientWidth")=="true"
+                if(!ready)Thread.sleep(200)
+            }
+            // This external smoke test may skip if SRF is unavailable or changes its markup.
+            // The controlled overflow cases above remain mandatory and offline.
+            assumeTrue("SRF forecast is unavailable; controlled swipe tests still apply",ready)
+            evaluate(scenario,"document.querySelector('$selector').scrollIntoView({block:'center'}); true")
+            Thread.sleep(700)
+            val before=JSONObject(evaluate(scenario,"(()=>{const e=document.querySelector('$selector'),r=e.getBoundingClientRect();return {x:e.scrollLeft,y:r.top+r.height/2-visualViewport.offsetTop,width:visualViewport.width,pageX:visualViewport.pageLeft}})()"))
+            var x=0;var y=0;var width=0
+            scenario.onActivity {activity -> web(activity.window.decorView)!!.let {view ->
+                val location=IntArray(2);view.getLocationOnScreen(location)
+                x=location[0];width=view.width;y=location[1]+(before.getDouble("y")*width/before.getDouble("width")).toInt()
+            } }
+            screenshot("srf-forecast-before-swipe")
+            assertTrue(device.swipe(x+width*4/5,y,x+width/5,y,35))
+            Thread.sleep(700)
+            val after=evaluate(scenario,"document.querySelector('$selector').scrollLeft").toDouble()
+            println("SRF_FINGER_SWIPE before=${before.getDouble("x")} after=$after")
+            screenshot("srf-forecast-after-swipe")
+            assertTrue("The SRF forecast must reveal later days after a finger swipe",after>before.getDouble("x")+20)
+        }
+    }
+
 }
