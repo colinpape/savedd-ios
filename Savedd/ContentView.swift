@@ -24,6 +24,7 @@ struct ContentView: View {
     @State private var focusAfterDictation = false
     @State private var sharePage: SharedBrowserPage?
     @State private var isEditingAddress = false
+    @State private var keyboardIsVisible = false
     @FocusState private var addressFieldFocused: Bool
 
     init(initialURL: URL = SaveddSearchEngine.homeURL) {
@@ -80,6 +81,12 @@ struct ContentView: View {
         return url.host ?? url.absoluteString
     }
     
+    private var hideBrowserControls: Bool {
+        // Give any website field the keyboard's space without browser chrome.
+        // Keep the native address editor available when it owns the keyboard.
+        keyboardIsVisible && !isEditingAddress
+    }
+
     var body: some View {
         GeometryReader { geometry in
             ZStack {
@@ -128,6 +135,7 @@ struct ContentView: View {
                 }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !hideBrowserControls {
             VStack(spacing: 8) {
                 if isEditingAddress {
                     recentHistory
@@ -275,10 +283,17 @@ struct ContentView: View {
                 Color(UIColor.systemBackground).ignoresSafeArea(.container, edges: .bottom)
             }
             }
+            }
         }
         .background {
             // Only the browser background extends behind the status bar and corners.
             Color(UIColor.systemBackground).ignoresSafeArea(.container)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            keyboardIsVisible = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            keyboardIsVisible = false
         }
         .confirmationDialog("Clear recent searches and addresses?", isPresented: $confirmClearHistory, titleVisibility: .visible) {
             Button("Clear history", role: .destructive) { addressHistory.clear() }
