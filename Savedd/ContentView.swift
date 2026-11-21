@@ -82,10 +82,9 @@ struct ContentView: View {
     }
     
     private var hideBrowserControls: Bool {
-        // A website search uses the keyboard's space without the browser chrome.
+        // Give any website field the keyboard's space without browser chrome.
         // Keep the native address editor available when it owns the keyboard.
-        keyboardIsVisible && !isEditingAddress &&
-            SaveddSearchEngine.addressText(for: tabs[activeTabIndex].url).isEmpty
+        keyboardIsVisible && !isEditingAddress
     }
 
     var body: some View {
